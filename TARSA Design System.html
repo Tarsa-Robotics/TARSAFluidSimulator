@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TARSA — Design System</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@24,300,0,-25">
+<style>
+  /* ---- page setup ---- */
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; background: #5E646B; font-family: var(--font-sans); color: var(--ink); }
+
+  /* on-screen: show pages stacked on a gray desk; in print: each fills a sheet */
+  .page {
+    width: 210mm; height: 296mm; background: var(--paper);
+    margin: 0 auto 14px; position: relative; overflow: hidden;
+    padding: 22mm 20mm 18mm;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .page.ink { background: var(--ink-bg); color: var(--fg-on-ink); }
+  @media print {
+    html, body { width: 210mm; }
+    body { background: none; }
+    .page { margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+    .page:last-child { break-after: auto; page-break-after: auto; }
+  }
+
+  /* ---- running header / footer ---- */
+  .runhead { position: absolute; top: 12mm; left: 20mm; right: 20mm;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--fg-3); }
+  .ink .runhead { color: var(--fg-on-ink-2); }
+  .runfoot { position: absolute; bottom: 11mm; left: 20mm; right: 20mm;
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--fg-3); }
+  .ink .runfoot { color: var(--fg-on-ink-2); }
+
+  /* ---- section heads ---- */
+  .sec-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--fg-2); display: inline-flex; align-items: center; gap: 10px; }
+  .sec-eyebrow::before { content: ""; width: 18px; height: 1px; background: var(--signal); }
+  h2.sec { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em;
+    margin: 12px 0 0; line-height: 1.05; }
+  .sec-lead { font-size: 13px; line-height: 1.55; color: var(--fg-2); max-width: 64ch; margin: 14px 0 0; }
+  .rule { height: 1px; background: var(--n-200); margin: 22px 0; }
+  .ink .rule { background: rgba(255,255,255,0.12); }
+
+  /* ---- generic helpers ---- */
+  .mono { font-family: var(--font-mono); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .lbl { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); margin-bottom: 8px; }
+  .hex { font-family: var(--font-mono); font-size: 10px; opacity: 0.82; }
+  .material-symbols-sharp { font-family: 'Material Symbols Sharp'; font-variation-settings: 'FILL' 0,'wght' 300,'GRAD' -25,'opsz' 24; vertical-align: middle; }
+
+  /* ---- cover ---- */
+  .cover-field { position: absolute; inset: 0; pointer-events: none; }
+  .cover-meta { position: absolute; bottom: 18mm; left: 20mm; right: 20mm;
+    display: flex; justify-content: space-between; align-items: flex-end; }
+  .swatch { height: 92px; border-radius: 3px; display: flex; flex-direction: column; justify-content: flex-end; padding: 9px 11px; }
+  .swatch .n { font-weight: 600; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<section class="page ink">
+  <div class="cover-field">
+    <svg width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0">
+      <defs><pattern id="cfcover" width="64" height="64" patternUnits="userSpaceOnUse">
+        <path d="M64 0 L0 0 0 64" fill="none" stroke="#23262C" stroke-width="1"/></pattern></defs>
+      <rect width="100%" height="100%" fill="url(#cfcover)"/>
+    </svg>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+      <g stroke="#3C4047" stroke-width="0.15" vector-effect="non-scaling-stroke">
+        <line x1="0" y1="0" x2="68" y2="60"/><line x1="100" y1="0" x2="68" y2="60"/>
+        <line x1="0" y1="100" x2="68" y2="60"/><line x1="100" y1="100" x2="68" y2="60"/>
+      </g>
+    </svg>
+    <div style="position:absolute;left:68%;top:60%;width:12px;height:12px;background:var(--signal);transform:translate(-50%,-50%)"></div>
+  </div>
+
+  <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;margin-top:6mm">
+    <img src="assets/logo/tarsa-mark-light.svg" width="34" height="34" alt="">
+    <span style="font-family:var(--font-display);font-weight:700;font-size:24px;letter-spacing:0.02em">TARSA</span>
+  </div>
+
+  <div style="position:relative;z-index:1;margin-top:78mm;max-width:150mm">
+    <div class="sec-eyebrow" style="color:var(--fg-on-ink-2)">Brand &amp; design system</div>
+    <h1 style="font-family:var(--font-display);font-weight:700;font-size:62px;line-height:0.98;letter-spacing:-0.03em;margin:18px 0 0">
+      Precision,<br>held in tension.</h1>
+    <p style="font-size:14px;line-height:1.6;color:var(--fg-on-ink-2);max-width:64ch;margin:22px 0 0">
+      The visual system for TARSA — a large-scale, planar cable-driven parallel robot that cleans
+      building facades. Tethered, not flown. Built to Dieter Rams' Ten Principles.</p>
+  </div>
+
+  <div class="cover-meta">
+    <span class="mono" style="font-size:10px;letter-spacing:0.14em;color:var(--fg-on-ink-2)">FACADE ROBOTICS · MONTRÉAL QC</span>
+    <span class="mono" style="font-size:10px;letter-spacing:0.14em;color:var(--fg-on-ink-2)">v0.4 · 2026 · CONCORDIA UNIVERSITY</span>
+  </div>
+</section>
+
+<!-- ============================ 01 — THE IDEA ============================ -->
+<section class="page">
+  <div class="runhead"><span>TARSA — Design System</span><span>01 · The idea</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow">What TARSA is</div>
+    <h2 class="sec">A coordinate held in tension.</h2>
+    <p class="sec-lead">Four motorized reels anchor at the facade corners — two on the roof, two in the ground — and
+      tension a small payload (a camera and a rotating nozzle) anywhere across the facade plane. It cleans the way
+      facade drones do: soap and deionized water, pumped from the ground through the tether and applied under
+      pressure. The difference is that TARSA is <b>tethered, not flown</b> — no battery aloft, no flying mass over the
+      street, no airspace regulation, and no height ceiling.</p>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="grid3" style="gap:18px">
+    <div>
+      <div class="lbl">Feel</div>
+      <p style="font-size:13px;line-height:1.55;margin:0">Precision. Beauty. Trust. The system reads as an engineering datum — a drafting table, not a sales pitch.</p>
+    </div>
+    <div>
+      <div class="lbl">Audience</div>
+      <p style="font-size:13px;line-height:1.55;margin:0">Property managers, CFOs, facility engineers. Signals credibility and rigor — never venture hype.</p>
+    </div>
+    <div>
+      <div class="lbl">Reference</div>
+      <p style="font-size:13px;line-height:1.55;margin:0">Dieter Rams' Ten Principles govern every decision. If an element only decorates, it is removed.</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="lbl">The motif — convergence on the coordinate field</div>
+  <div style="border:1px solid var(--n-200);border-radius:3px;overflow:hidden;background:var(--ink-bg);height:74mm;position:relative">
+    <svg width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0">
+      <defs><pattern id="cf1" width="58" height="58" patternUnits="userSpaceOnUse">
+        <path d="M58 0 L0 0 0 58" fill="none" stroke="#23262C" stroke-width="1"/></pattern></defs>
+      <rect width="100%" height="100%" fill="url(#cf1)"/>
+    </svg>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+      <g stroke="#3C4047" stroke-width="0.16" vector-effect="non-scaling-stroke">
+        <line x1="0" y1="0" x2="70" y2="52"/><line x1="100" y1="0" x2="70" y2="52"/>
+        <line x1="0" y1="100" x2="70" y2="52"/><line x1="100" y1="100" x2="70" y2="52"/>
+      </g>
+    </svg>
+    <div style="position:absolute;left:70%;top:52%;width:11px;height:11px;background:var(--signal);transform:translate(-50%,-50%)"></div>
+    <div class="mono" style="position:absolute;left:calc(70% + 16px);top:52%;transform:translateY(-50%);font-size:9.5px;letter-spacing:0.12em;color:#9AA0A7">PAYLOAD · X,Y</div>
+    <div class="mono" style="position:absolute;left:14px;bottom:12px;font-size:9px;letter-spacing:0.12em;color:#6B7079;line-height:1.7">FIELD = TEXTURE, REPEATS<br>CONVERGENCE = FOCAL, ONCE</div>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA</span><span>01</span></div>
+</section>
+
+<!-- ============================ 02 — LOGO ============================ -->
+<section class="page">
+  <div class="runhead"><span>TARSA — Design System</span><span>02 · Logo</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow">The mark</div>
+    <h2 class="sec">Four corners, one payload.</h2>
+    <p class="sec-lead">The mark is the machine, abstracted to its honest geometry: four corner reels, four cables,
+      one small payload held at the center. The payload renders as a neutral square — its real orientation is still
+      TBD, so the mark commits to no rotation. The wordmark is Archivo, no custom letterforms.</p>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="grid2" style="gap:16px">
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--surface);padding:26px;display:flex;align-items:center;gap:18px;min-height:46mm">
+      <img src="assets/logo/tarsa-mark.svg" width="58" height="58" alt="">
+      <div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:40px;letter-spacing:0.02em;line-height:1">TARSA</div>
+        <div class="mono" style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg-2);margin-top:6px">Facade Robotics</div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--ink-bg);padding:26px;display:flex;align-items:center;justify-content:center;gap:16px;min-height:46mm">
+      <img src="assets/logo/tarsa-mark-light.svg" width="48" height="48" alt="">
+      <div style="font-family:var(--font-display);font-weight:700;font-size:34px;letter-spacing:0.02em;color:var(--fg-on-ink)">TARSA</div>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin-top:16px">
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--surface);padding:18px;text-align:center">
+      <img src="assets/logo/tarsa-mark.svg" width="42" height="42" alt="">
+      <div class="lbl" style="margin:12px 0 0">Mark · ink</div>
+    </div>
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--ink-bg);padding:18px;text-align:center">
+      <img src="assets/logo/tarsa-mark-light.svg" width="42" height="42" alt="">
+      <div class="lbl" style="margin:12px 0 0;color:var(--fg-on-ink-2)">Mark · reversed</div>
+    </div>
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--surface);padding:18px;text-align:center">
+      <img src="assets/logo/tarsa-mark-signal.svg" width="42" height="42" alt="">
+      <div class="lbl" style="margin:12px 0 0">Mark · payload active</div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+  <div class="grid2">
+    <div>
+      <div class="lbl">Clearspace &amp; minimum size</div>
+      <p style="font-size:12.5px;line-height:1.55;margin:0;color:var(--fg-2)">Keep clearspace equal to the payload square on all sides. Minimum mark size 16px / 5mm; below that, drop the descriptor line.</p>
+    </div>
+    <div>
+      <div class="lbl">Don't</div>
+      <p style="font-size:12.5px;line-height:1.55;margin:0;color:var(--fg-2)">No rotation, no recoloring the cables, no gradient, no outline-only mark, no setting the wordmark in another typeface.</p>
+    </div>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA</span><span>02</span></div>
+</section>
+
+<!-- ============================ 03 — COLOR ============================ -->
+<section class="page">
+  <div class="runhead"><span>TARSA — Design System</span><span>03 · Color</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow">Color</div>
+    <h2 class="sec">Cool, mineral, quiet — one signal.</h2>
+    <p class="sec-lead">Graphite ink and cool mineral neutrals on a drafting-paper ground. Color is an event, not a wash:
+      a single vermilion signal marks the live, measured, or most-important thing, and never covers more than ~2% of a surface.</p>
+  </div>
+
+  <div class="rule"></div>
+  <div class="lbl">Surfaces &amp; ink</div>
+  <div class="grid2" style="gap:10px">
+    <div class="swatch" style="background:#F3F4F5;border:1px solid #D6D9DD"><span class="n">Paper</span><span class="hex">#F3F4F5</span></div>
+    <div class="swatch" style="background:#FFFFFF;border:1px solid #D6D9DD"><span class="n">Surface</span><span class="hex">#FFFFFF</span></div>
+    <div class="swatch" style="background:#16181C;color:#F3F4F5"><span class="n">Ink</span><span class="hex">#16181C</span></div>
+    <div class="swatch" style="background:#1D2025;color:#F3F4F5"><span class="n">Ink raised</span><span class="hex">#1D2025</span></div>
+  </div>
+
+  <div style="height:14px"></div>
+  <div class="lbl">Neutral ramp</div>
+  <div style="display:flex;gap:0;border-radius:3px;overflow:hidden">
+    <div class="swatch" style="flex:1;height:64px;background:#F3F4F5"><span class="hex">50</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#E7E9EB"><span class="hex">100</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#D6D9DD"><span class="hex">200</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#B4B9BF"><span class="hex">300</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#898F96;color:#fff"><span class="hex">400</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#5E646B;color:#fff"><span class="hex">500</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#33383E;color:#fff"><span class="hex">700</span></div>
+    <div class="swatch" style="flex:1;height:64px;background:#16181C;color:#fff"><span class="hex">ink</span></div>
+  </div>
+
+  <div style="height:14px"></div>
+  <div class="grid2" style="gap:16px">
+    <div>
+      <div class="lbl">Signal — the one accent</div>
+      <div style="display:flex;gap:8px">
+        <div class="swatch" style="flex:2;height:72px;background:#DE3B26;color:#fff"><span class="n">Signal</span><span class="hex">#DE3B26</span></div>
+        <div class="swatch" style="flex:1;height:72px;background:#BE2E1B;color:#fff"><span class="hex">press</span><span class="hex">#BE2E1B</span></div>
+        <div class="swatch" style="flex:1;height:72px;background:#FBEAE6;border:1px solid #F0CFC8"><span class="hex">tint</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl">Semantic states</div>
+      <div style="display:flex;gap:8px">
+        <div class="swatch" style="flex:1;height:72px;background:#2E7D5B;color:#fff"><span class="hex">clean</span><span class="hex">#2E7D5B</span></div>
+        <div class="swatch" style="flex:1;height:72px;background:#B7791F;color:#fff"><span class="hex">soiled</span><span class="hex">#B7791F</span></div>
+        <div class="swatch" style="flex:1;height:72px;background:#DE3B26;color:#fff"><span class="hex">fault</span><span class="hex">#DE3B26</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA</span><span>03</span></div>
+</section>
+
+<!-- ============================ 04 — TYPE ============================ -->
+<section class="page">
+  <div class="runhead"><span>TARSA — Design System</span><span>04 · Typography</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow">Typography</div>
+    <h2 class="sec">Archivo + IBM Plex Mono.</h2>
+    <p class="sec-lead">Archivo — an engineered grotesque — carries display and body. IBM Plex Mono is the instrument voice:
+      eyebrows, spec keys, captions, and all data. Two families, no third. Headings set tight and heavy; mono labels
+      tracked and uppercase.</p>
+  </div>
+
+  <div class="rule"></div>
+
+  <div style="display:flex;flex-direction:column;gap:0">
+    <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--n-200);padding:9px 0">
+      <span class="mono" style="font-size:9.5px;color:var(--fg-3);width:120px;flex:0 0 120px">Archivo 700 · 62</span>
+      <span style="font-family:var(--font-display);font-weight:700;font-size:44px;letter-spacing:-0.03em;line-height:1">Tethered, not flown.</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--n-200);padding:9px 0">
+      <span class="mono" style="font-size:9.5px;color:var(--fg-3);width:120px;flex:0 0 120px">Archivo 700 · 38</span>
+      <span style="font-family:var(--font-display);font-weight:700;font-size:30px;letter-spacing:-0.02em">Cable-driven facade cleaning</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--n-200);padding:9px 0">
+      <span class="mono" style="font-size:9.5px;color:var(--fg-3);width:120px;flex:0 0 120px">Archivo 600 · 28</span>
+      <span style="font-family:var(--font-display);font-weight:600;font-size:24px;letter-spacing:-0.02em">Four corners, one payload</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--n-200);padding:9px 0">
+      <span class="mono" style="font-size:9.5px;color:var(--fg-3);width:120px;flex:0 0 120px">Archivo 400 · 16</span>
+      <span style="font-size:15px;line-height:1.5;max-width:60ch">Soap and deionized water are pumped from the ground through the tether and applied under pressure; a camera reads the glass and the nozzle wets only what is dirty.</span>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+  <div class="grid2" style="gap:16px">
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--surface);padding:18px">
+      <div class="lbl">Instrument label</div>
+      <div class="mono" style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:var(--fg-2)">SECTION 04 — SAFETY</div>
+      <div class="mono" style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:var(--signal);margin-top:8px">● LIVE · REEL TENSION</div>
+    </div>
+    <div style="border:1px solid var(--n-200);border-radius:3px;background:var(--surface);padding:18px">
+      <div class="lbl">Data · tabular nums</div>
+      <div class="mono" style="font-weight:500;font-size:24px;letter-spacing:-0.01em">412 <span style="color:var(--fg-3);font-size:13px">N</span> &nbsp; 8.4 <span style="color:var(--fg-3);font-size:13px">m/min</span></div>
+    </div>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA</span><span>04</span></div>
+</section>
+
+<!-- ============================ 05 — SPACING & COMPONENTS ============================ -->
+<section class="page">
+  <div class="runhead"><span>TARSA — Design System</span><span>05 · Space &amp; components</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow">Space, shape &amp; components</div>
+    <h2 class="sec">Sharp, hairline, exact.</h2>
+    <p class="sec-lead">An 8px base grid, near-square corners (0/2/4/8), and depth from hairlines before shadows.
+      Components are quiet: ink primary, signal reserved for the single most important action.</p>
+  </div>
+
+  <div class="rule"></div>
+  <div class="grid2" style="gap:18px">
+    <div>
+      <div class="lbl">Spacing — 8px base</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:10px;color:var(--fg-2);width:64px">8</span><div style="height:12px;width:8px;background:var(--ink)"></div></div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:10px;color:var(--fg-2);width:64px">16</span><div style="height:12px;width:16px;background:var(--ink)"></div></div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:10px;color:var(--fg-2);width:64px">24</span><div style="height:12px;width:24px;background:var(--ink)"></div></div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:10px;color:var(--fg-2);width:64px">48</span><div style="height:12px;width:48px;background:var(--ink)"></div></div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:10px;color:var(--fg-2);width:64px">96</span><div style="height:12px;width:96px;background:var(--ink)"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl">Radii — 0 / 2 / 4 / 8</div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div style="width:48px;height:40px;background:var(--surface);border:1.5px solid var(--ink);border-radius:0"></div>
+        <div style="width:48px;height:40px;background:var(--surface);border:1.5px solid var(--ink);border-radius:2px"></div>
+        <div style="width:48px;height:40px;background:var(--surface);border:1.5px solid var(--ink);border-radius:4px"></div>
+        <div style="width:48px;height:40px;background:var(--surface);border:1.5px solid var(--ink);border-radius:8px"></div>
+      </div>
+      <div class="lbl" style="margin-top:16px">Datum rule</div>
+      <div class="datum"></div>
+      <div class="datum datum--signal" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+  <div class="lbl">Components</div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn btn--primary">Book a survey</button>
+    <button class="btn btn--signal">Request pilot</button>
+    <button class="btn btn--outline">Specifications</button>
+    <span class="tag tag--clean">Clean</span>
+    <span class="tag tag--soiled">Soiled</span>
+    <span class="tag tag--fault">Fault · reel 03</span>
+  </div>
+  <div class="grid2" style="gap:16px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:16px 18px">
+        <div class="lbl" style="margin-bottom:10px">Spec 01</div>
+        <div style="font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:-0.01em">Ground-fed wash</div>
+        <p style="font-size:12.5px;line-height:1.5;color:var(--fg-2);margin:5px 0 0">Soap and deionized water pumped up the tether. Nothing flown, no battery aloft.</p>
+      </div>
+      <div class="datum"></div>
+      <div style="padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
+        <span class="mono" style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--fg-2)">Pressure</span>
+        <span class="mono" style="font-weight:500;font-size:16px">2,800 psi</span>
+      </div>
+    </div>
+    <div style="border:1px solid var(--n-200);border-radius:4px;background:var(--surface);padding:18px">
+      <div class="lbl">Field</div>
+      <label style="display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--fg-2);margin:4px 0 6px">Building height (m)</label>
+      <input class="field" value="84" readonly style="border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)">
+      <p style="font-size:11px;color:var(--fg-3);margin:10px 0 0">Focus ring is a crisp 1px inset, never a soft halo.</p>
+    </div>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA</span><span>05</span></div>
+</section>
+
+<!-- ============================ 06 — PRINCIPLES / CLOSE ============================ -->
+<section class="page ink">
+  <div class="runhead"><span>TARSA — Design System</span><span>06 · Principles</span></div>
+  <div style="margin-top:8mm">
+    <div class="sec-eyebrow" style="color:var(--fg-on-ink-2)">The test every decision passes</div>
+    <h2 class="sec" style="color:var(--fg-on-ink)">Less, but better.</h2>
+    <p class="sec-lead" style="color:var(--fg-on-ink-2)">Dieter Rams' Ten Principles are the brief. The kill list below always fails it.</p>
+  </div>
+
+  <div class="rule"></div>
+  <div class="grid2" style="gap:10px 36px">
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">01</span><span style="font-size:13px">Innovative — improve meaningfully on prior form</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">06</span><span style="font-size:13px">Honest — claims only what it delivers</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">02</span><span style="font-size:13px">Useful — every feature earns its place</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">07</span><span style="font-size:13px">Long-lasting — avoids trends, ages well</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">03</span><span style="font-size:13px">Aesthetic — beauty from precision, not ornament</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">08</span><span style="font-size:13px">Thorough — nothing left to chance</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">04</span><span style="font-size:13px">Understandable — explains itself, no manual</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">09</span><span style="font-size:13px">Environmentally friendly — conserves, no excess</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">05</span><span style="font-size:13px">Unobtrusive — a tool, not a statement</span></div>
+    <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.10)"><span class="mono" style="color:var(--signal);font-size:12px;width:24px">10</span><span style="font-size:13px">As little as possible — strip to essentials</span></div>
+  </div>
+
+  <div style="height:18px"></div>
+  <div class="lbl" style="color:var(--fg-on-ink-2)">Kill list — always fails</div>
+  <p style="font-size:13px;line-height:1.7;color:var(--fg-on-ink-2);max-width:70ch;margin:6px 0 0">
+    Side-stripe accent borders · gradient text · default glassmorphism · the hero-metric template ·
+    identical icon-card grids · modal-first thinking · warm photo grades &amp; fake grain · emoji ·
+    rounded "friendly" everything · bluish-purple gradients.</p>
+
+  <div style="margin-top:30px;display:flex;align-items:center;gap:12px">
+    <img src="assets/logo/tarsa-mark-light.svg" width="26" height="26" alt="">
+    <span style="font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:0.02em">TARSA</span>
+    <span class="mono" style="font-size:10px;letter-spacing:0.14em;color:var(--fg-on-ink-2);margin-left:6px">— FACADE ROBOTICS</span>
+  </div>
+
+  <div class="runfoot"><span>© 2026 TARSA · MONTRÉAL QC</span><span>06</span></div>
+</section>
+
+<script>
+  // Auto-open the print dialog once fonts + layout are ready.
+  // In the print dialog, set Destination → "Save as PDF", Margins → None, enable Background graphics.
+  function tarsaPrint() { try { window.print(); } catch (e) {} }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => setTimeout(tarsaPrint, 500));
+  } else {
+    window.addEventListener('load', () => setTimeout(tarsaPrint, 600));
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,215 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "ui_kits/website/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Archivo|IBM Plex Mono))/i]",
+        "message": "Font not provided by the design system. Available: Archivo, IBM Plex Mono."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {},
+    "tokens": [
+      "--bd",
+      "--bd-ink",
+      "--bd-strong",
+      "--clean",
+      "--clean-tint",
+      "--dur",
+      "--dur-fast",
+      "--dur-slow",
+      "--ease",
+      "--ease-in-out",
+      "--fault",
+      "--fg",
+      "--fg-2",
+      "--fg-3",
+      "--fg-on-ink",
+      "--fg-on-ink-2",
+      "--fg-on-signal",
+      "--font-display",
+      "--font-mono",
+      "--font-sans",
+      "--fs-body",
+      "--fs-caption",
+      "--fs-display",
+      "--fs-display-xl",
+      "--fs-eyebrow",
+      "--fs-h1",
+      "--fs-h2",
+      "--fs-h3",
+      "--fs-h4",
+      "--fs-lg",
+      "--fs-sm",
+      "--gutter",
+      "--ink",
+      "--ink-bg",
+      "--ink-bg-2",
+      "--measure",
+      "--n-0",
+      "--n-100",
+      "--n-200",
+      "--n-300",
+      "--n-400",
+      "--n-50",
+      "--n-500",
+      "--n-700",
+      "--page-max",
+      "--paper",
+      "--r-0",
+      "--r-1",
+      "--r-2",
+      "--r-3",
+      "--r-pill",
+      "--shadow-0",
+      "--shadow-menu",
+      "--shadow-modal",
+      "--signal",
+      "--signal-press",
+      "--signal-tint",
+      "--soiled",
+      "--soiled-tint",
+      "--sp-1",
+      "--sp-10",
+      "--sp-2",
+      "--sp-3",
+      "--sp-4",
+      "--sp-5",
+      "--sp-6",
+      "--sp-7",
+      "--sp-8",
+      "--sp-9",
+      "--surface",
+      "--surface-sunk",
+      "--track-eyebrow",
+      "--track-normal",
+      "--track-tight",
+      "--track-tighter",
+      "--track-wide"
+    ],
+    "tokenKinds": {
+      "--paper": "color",
+      "--surface": "color",
+      "--surface-sunk": "color",
+      "--ink-bg": "color",
+      "--ink-bg-2": "color",
+      "--n-0": "color",
+      "--n-50": "color",
+      "--n-100": "color",
+      "--n-200": "color",
+      "--n-300": "color",
+      "--n-400": "color",
+      "--n-500": "color",
+      "--n-700": "color",
+      "--ink": "color",
+      "--signal": "color",
+      "--signal-press": "color",
+      "--signal-tint": "color",
+      "--clean": "color",
+      "--clean-tint": "color",
+      "--soiled": "color",
+      "--soiled-tint": "color",
+      "--fault": "color",
+      "--fg": "color",
+      "--fg-2": "color",
+      "--fg-3": "color",
+      "--fg-on-ink": "color",
+      "--fg-on-ink-2": "color",
+      "--fg-on-signal": "color",
+      "--font-display": "font",
+      "--font-sans": "font",
+      "--font-mono": "font",
+      "--fs-eyebrow": "spacing",
+      "--fs-caption": "spacing",
+      "--fs-sm": "spacing",
+      "--fs-body": "spacing",
+      "--fs-lg": "spacing",
+      "--fs-h4": "spacing",
+      "--fs-h3": "spacing",
+      "--fs-h2": "spacing",
+      "--fs-h1": "spacing",
+      "--fs-display": "spacing",
+      "--fs-display-xl": "spacing",
+      "--track-tight": "spacing",
+      "--track-tighter": "spacing",
+      "--track-normal": "other",
+      "--track-eyebrow": "spacing",
+      "--track-wide": "spacing",
+      "--sp-1": "spacing",
+      "--sp-2": "spacing",
+      "--sp-3": "spacing",
+      "--sp-4": "spacing",
+      "--sp-5": "spacing",
+      "--sp-6": "spacing",
+      "--sp-7": "spacing",
+      "--sp-8": "spacing",
+      "--sp-9": "spacing",
+      "--sp-10": "spacing",
+      "--r-0": "spacing",
+      "--r-1": "spacing",
+      "--r-2": "spacing",
+      "--r-3": "spacing",
+      "--r-pill": "spacing",
+      "--bd": "color",
+      "--bd-strong": "color",
+      "--bd-ink": "color",
+      "--shadow-0": "shadow",
+      "--shadow-menu": "shadow",
+      "--shadow-modal": "shadow",
+      "--ease": "other",
+      "--ease-in-out": "other",
+      "--dur-fast": "other",
+      "--dur": "other",
+      "--dur-slow": "other",
+      "--measure": "spacing",
+      "--gutter": "spacing",
+      "--page-max": "spacing"
+    },
+    "fontFamilies": [
+      "Archivo",
+      "IBM Plex Mono"
+    ]
+  }
+}

@@ -1,0 +1,257 @@
+/* ==========================================================================
+   TARSA — Facade Robotics — Design Tokens
+   Register: engineering datum / drafting elevation. Dieter Rams strict.
+   Cool mineral neutrals + graphite ink + paper. ONE signal accent (<2% area).
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ----- Color: surfaces -------------------------------------------------- */
+  --paper:        #F3F4F5;   /* page background — cool drafting surface, NOT cream */
+  --surface:      #FFFFFF;   /* raised card / panel */
+  --surface-sunk: #ECEEF0;   /* inset wells, code, fields */
+  --ink-bg:       #16181C;   /* dark surface (console, dark slides) */
+  --ink-bg-2:     #1D2025;   /* raised panel on dark */
+
+  /* ----- Color: neutral ramp (cool / mineral) ---------------------------- */
+  --n-0:   #FFFFFF;
+  --n-50:  #F3F4F5;
+  --n-100: #E7E9EB;
+  --n-200: #D6D9DD;   /* hairline borders, dividers */
+  --n-300: #B4B9BF;   /* disabled, faint rules */
+  --n-400: #898F96;   /* tertiary text, ticks */
+  --n-500: #5E646B;   /* secondary text */
+  --n-700: #33383E;
+  --ink:   #16181C;   /* primary text — graphite, never pure black */
+
+  /* ----- Color: signal (THE accent — measurement / active / primary CTA) -- */
+  --signal:       #DE3B26;   /* vermilion — datum marker, the live element */
+  --signal-press: #BE2E1B;
+  --signal-tint:  #FBEAE6;   /* faintest wash, backgrounds only */
+
+  /* ----- Color: semantic states (muted, never decorative) ----------------- */
+  --clean:   #2E7D5B;   /* "clean / verified" — vision pass */
+  --clean-tint: #E6F0EB;
+  --soiled:  #B7791F;   /* "soiled / attention" */
+  --soiled-tint: #F6EEDD;
+  --fault:   #DE3B26;   /* fault = signal red */
+
+  /* ----- Color: foreground roles ----------------------------------------- */
+  --fg:        var(--ink);
+  --fg-2:      var(--n-500);
+  --fg-3:      var(--n-400);
+  --fg-on-ink:    #F3F4F5;
+  --fg-on-ink-2:  #9AA0A7;
+  --fg-on-signal: #FFFFFF;
+
+  /* ----- Type: families --------------------------------------------------- */
+  --font-display: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans:    "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ----- Type: scale (px) ------------------------------------------------- */
+  --fs-eyebrow:  12px;   /* mono, uppercase, tracked — the "instrument label" */
+  --fs-caption:  13px;
+  --fs-sm:       14px;
+  --fs-body:     16px;
+  --fs-lg:       18px;
+  --fs-h4:       22px;
+  --fs-h3:       28px;
+  --fs-h2:       38px;
+  --fs-h1:       52px;
+  --fs-display:  76px;
+  --fs-display-xl: 104px;
+
+  /* ----- Type: tracking --------------------------------------------------- */
+  --track-tight:   -0.02em;   /* display / headings */
+  --track-tighter: -0.03em;   /* hero display only */
+  --track-normal:  0; /* @kind other */
+  --track-eyebrow:  0.14em;   /* mono uppercase labels */
+  --track-wide:     0.04em;
+
+  /* ----- Spacing (8px base, 4px sub) -------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+  --sp-10: 128px;
+
+  /* ----- Radii (sharp / precise — reels, cable, a boxy payload: all straight edges) -- */
+  --r-0: 0px;
+  --r-1: 2px;     /* default — chips, inputs */
+  --r-2: 4px;     /* cards, panels */
+  --r-3: 8px;     /* large containers only */
+  --r-pill: 999px; /* rare — toggle thumbs, never decorative */
+
+  /* ----- Borders ---------------------------------------------------------- */
+  --bd:        1px solid var(--n-200);
+  --bd-strong: 1.5px solid var(--ink);
+  --bd-ink:    1px solid var(--ink);
+
+  /* ----- Elevation (used sparingly — depth comes from hairlines + grid) --- */
+  --shadow-0: none;
+  --shadow-menu: 0 4px 16px rgba(22, 24, 28, 0.10), 0 0 0 1px rgba(22, 24, 28, 0.06);
+  --shadow-modal: 0 16px 48px rgba(22, 24, 28, 0.18);
+
+  /* ----- Motion (unobtrusive, no bounce) ---------------------------------- */
+  --ease:  cubic-bezier(0.2, 0, 0, 1); /* @kind other */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --dur-fast: 120ms; /* @kind other */
+  --dur:      200ms; /* @kind other */
+  --dur-slow: 320ms; /* @kind other */
+
+  /* ----- Layout ----------------------------------------------------------- */
+  --measure: 64ch;        /* max reading width */
+  --gutter: 24px;
+  --page-max: 1240px;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body.tarsa {
+  margin: 0;
+  background: var(--paper);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ==========================================================================
+   Type recipes
+   ========================================================================== */
+.t-display-xl {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: var(--fs-display-xl);
+  line-height: 0.95; letter-spacing: var(--track-tighter); color: var(--fg);
+}
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: var(--fs-display);
+  line-height: 0.98; letter-spacing: var(--track-tighter); color: var(--fg);
+}
+.t-h1 { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-h1);
+  line-height: 1.04; letter-spacing: var(--track-tight); color: var(--fg); }
+.t-h2 { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-h2);
+  line-height: 1.08; letter-spacing: var(--track-tight); color: var(--fg); }
+.t-h3 { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-h3);
+  line-height: 1.15; letter-spacing: var(--track-tight); color: var(--fg); }
+.t-h4 { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-h4);
+  line-height: 1.25; letter-spacing: var(--track-tight); color: var(--fg); }
+.t-lg   { font-size: var(--fs-lg); line-height: 1.5; }
+.t-body { font-size: var(--fs-body); line-height: 1.55; }
+.t-sm   { font-size: var(--fs-sm); line-height: 1.5; color: var(--fg-2); }
+.t-caption { font-size: var(--fs-caption); line-height: 1.45; color: var(--fg-2); }
+
+/* The instrument label — mono, uppercase, tracked. Eyebrows, specs, ticks. */
+.t-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 500; font-size: var(--fs-eyebrow);
+  letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase; color: var(--fg-2);
+}
+.t-mono { font-family: var(--font-mono); font-size: var(--fs-sm);
+  letter-spacing: 0; color: var(--fg); font-variant-numeric: tabular-nums; }
+.t-data { font-family: var(--font-mono); font-weight: 500;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* ==========================================================================
+   Components
+   ========================================================================== */
+
+/* --- Buttons ---------------------------------------------------------- */
+.btn {
+  font-family: var(--font-sans); font-weight: 600; font-size: var(--fs-sm);
+  letter-spacing: 0; line-height: 1;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 20px; border-radius: var(--r-1);
+  border: 1px solid transparent; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.btn--primary { background: var(--ink); color: var(--fg-on-ink); }
+.btn--primary:hover { background: #000; }
+.btn--primary:active { background: var(--n-700); }
+.btn--signal { background: var(--signal); color: var(--fg-on-signal); }
+.btn--signal:hover { background: var(--signal-press); }
+.btn--signal:active { background: var(--signal-press); }
+.btn--outline { background: transparent; color: var(--ink); border-color: var(--n-300); }
+.btn--outline:hover { border-color: var(--ink); background: var(--n-0); }
+.btn--ghost { background: transparent; color: var(--ink); }
+.btn--ghost:hover { background: var(--n-100); }
+.btn--lg { padding: 15px 26px; font-size: var(--fs-body); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- Field ------------------------------------------------------------ */
+.field {
+  font-family: var(--font-sans); font-size: var(--fs-body); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--n-300);
+  border-radius: var(--r-1); padding: 11px 14px; width: 100%;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.field::placeholder { color: var(--n-400); }
+.field:focus { outline: none; border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.field-label { display:block; font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: var(--track-eyebrow);
+  color: var(--fg-2); margin-bottom: 6px; }
+
+/* --- Tag / badge ------------------------------------------------------ */
+.tag {
+  font-family: var(--font-mono); font-weight: 500; font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: var(--r-1);
+  border: 1px solid var(--n-200); color: var(--fg-2); background: var(--surface);
+}
+.tag--clean  { color: var(--clean);  border-color: var(--clean);  background: var(--clean-tint); }
+.tag--soiled { color: var(--soiled); border-color: var(--soiled); background: var(--soiled-tint); }
+.tag--fault  { color: var(--signal); border-color: var(--signal); background: var(--signal-tint); }
+.tag--ink    { color: var(--fg-on-ink); border-color: var(--ink); background: var(--ink); }
+
+/* --- Card / panel ----------------------------------------------------- */
+.card {
+  background: var(--surface); border: var(--bd); border-radius: var(--r-2);
+  padding: var(--sp-5);
+}
+.card--flush { padding: 0; overflow: hidden; }
+
+/* --- Datum rule (THE motif: a measured scale-bar divider) ------------- */
+.datum {
+  height: 9px; position: relative; border-bottom: 1px solid var(--n-300);
+}
+.datum::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 9px;
+  background-image: repeating-linear-gradient(90deg,
+    var(--n-300) 0 1px, transparent 1px 24px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 100%);
+}
+.datum--signal { border-color: var(--signal); }
+.datum--signal::before { background-image: repeating-linear-gradient(90deg,
+    var(--signal) 0 1px, transparent 1px 24px); }
+
+/* --- Plumb line (vertical alignment spine — functional layout guide) -- */
+.plumb { position: relative; }
+.plumb::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 1px;
+  background: var(--n-200);
+}
+
+/* --- Eyebrow with tick (numbered section marker) ---------------------- */
+.eyebrow-tick { display: inline-flex; align-items: center; gap: 10px; }
+.eyebrow-tick::before { content:""; width: 18px; height: 1px; background: var(--signal); }
+
+/* --- Press / hover convention (no bounce; opacity or tint) ------------ */
+.pressable { transition: opacity var(--dur-fast) var(--ease); }
+.pressable:active { opacity: 0.72; }

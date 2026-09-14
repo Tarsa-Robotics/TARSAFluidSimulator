@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TARSA — Hose &amp; Pump Calculator</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@24,300,0,-25">
+<style>
+  body.tarsa { max-width: 1100px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-9); }
+
+  .topbar { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+  .topbar .material-symbols-sharp { font-size: 22px; color: var(--signal); }
+
+  .presets { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-5) 0; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-7); align-items: start; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .lockrow { display: flex; align-items: flex-end; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+  .field-col { flex: 1; min-width: 0; }
+  .field-col input.field { margin: 0; }
+
+  .lock-btn {
+    flex: 0 0 auto; width: 2.6rem; height: 2.55rem;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--n-300); border-radius: var(--r-1);
+    color: var(--fg-2); cursor: pointer; padding: 0;
+    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+                color var(--dur-fast) var(--ease);
+  }
+  .lock-btn:hover:not(:disabled) { background: var(--n-100); border-color: var(--ink); color: var(--ink); }
+  .lock-btn.active { background: var(--ink); border-color: var(--ink); color: var(--fg-on-ink); }
+  .lock-btn.active:hover { background: #000; }
+  .lock-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .lock-btn .material-symbols-sharp { font-size: 20px; }
+
+  input.field:disabled { background: var(--surface-sunk); color: var(--fg-2); cursor: not-allowed; }
+
+  .plain-field { margin-bottom: var(--sp-4); }
+
+  .status-caption { font-size: var(--fs-caption); color: var(--fg-2); margin: var(--sp-4) 0; }
+  .status-caption b { color: var(--ink); }
+
+  .band-row { display: flex; align-items: center; gap: var(--sp-2); margin: -6px 0 var(--sp-4) calc(2.6rem + var(--sp-2)); }
+
+  .dp-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); margin-top: var(--sp-3); }
+  .dp-table td { padding: 8px 0; border-bottom: 1px solid var(--n-200); }
+  .dp-table td:last-child { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .dp-table tr:last-child td { border-bottom: none; font-weight: 600; }
+  .dp-table tr.infeasible td { color: var(--signal); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin-top: var(--sp-3); }
+  .stat-card { background: var(--surface); border: var(--bd); border-radius: var(--r-2); padding: var(--sp-4); }
+  .stat-card .stat-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--track-eyebrow);
+    text-transform: uppercase; color: var(--fg-2); }
+  .stat-card .stat-value { font-family: var(--font-mono); font-weight: 500; font-size: 22px;
+    font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+  .error-box { color: var(--signal); font-size: var(--fs-sm); margin: var(--sp-2) 0; }
+
+  h4.section-head { margin: var(--sp-6) 0 0; }
+</style>
+</head>
+<body class="tarsa">
+
+<div class="topbar">
+  <span class="t-eyebrow">Facade robotics</span>
+</div>
+<h1 class="t-h1" style="margin:6px 0 0">TARSA</h1>
+<h2 class="t-h3" style="margin:2px 0 0;color:var(--fg-2);font-weight:500">Hose &amp; pump sizing calculator</h2>
+<p class="t-sm" style="color:var(--fg-2);max-width:70ch;margin-top:var(--sp-3)">
+  Locked fields are fixed values you set. Unlock exactly one input, then lock one output as your
+  target — that output becomes editable and solves the unlocked input to hit whatever you type.
+</p>
+
+<div class="datum" style="margin:var(--sp-5) 0"></div>
+
+<div class="presets">
+  <button class="btn btn--primary" id="btn-p40-300">Load Comet P40 defaults — 300 psi (electric)</button>
+  <button class="btn btn--outline" id="btn-p40-290">Load Comet P40 defaults — 290 psi (pull-start)</button>
+  <span class="tag tag--ink">PD pump — Q constant</span>
+</div>
+<p class="t-caption" style="color:var(--fg-3);margin-top:-8px">
+  Positive-displacement: Q stays fixed regardless of ΔP, up to the relief valve.
+</p>
+
+<div class="grid2" style="margin-top:var(--sp-6)">
+  <div>
+    <h3 class="t-h4">Inputs</h3>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-id_m" data-var="id_m"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="in-id_mm">Hose ID (mm)</label>
+        <input class="field" type="number" id="in-id_mm" step="0.1" min="3" max="50">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-L_m" data-var="L_m"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="in-L_m">Hose length L (m)</label>
+        <input class="field" type="number" id="in-L_m" step="1" min="1" max="200">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-H_m" data-var="H_m"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="in-H_m">Climb height H (m)</label>
+        <input class="field" type="number" id="in-H_m" step="1" min="0" max="150">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-Q_m3s" data-var="Q_m3s"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="in-Q_gpm">Flow Q (GPM)</label>
+        <input class="field" type="number" id="in-Q_gpm" step="0.1" min="0.1" max="200">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-dP_rated_pa" data-var="dP_rated_pa"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="in-dP_rated_psi">Pump rated ΔP (psi)</label>
+        <input class="field" type="number" id="in-dP_rated_psi" step="1" min="7" max="435">
+      </div>
+    </div>
+
+    <div class="plain-field">
+      <label class="field-label" for="in-roughness_mm">Roughness ε (mm) — assumed default, not sourced</label>
+      <input class="field" type="number" id="in-roughness_mm" step="0.001" min="0" max="1">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-T_c">Water temperature (°C)</label>
+      <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-Cv">Nozzle Cv</label>
+      <input class="field" type="number" id="in-Cv" step="0.01" min="0.5" max="1">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-weight_per_m">Hose weight (kg/m) — datasheet value, not geometric</label>
+      <input class="field" type="number" id="in-weight_per_m" step="0.01" min="0" max="5">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-p_burst_psi">Hose burst pressure (psi)</label>
+      <input class="field" type="number" id="in-p_burst_psi" step="50" min="0" max="10000">
+    </div>
+
+    <div class="datum" style="margin:var(--sp-5) 0"></div>
+    <p class="status-caption" id="solve-status"></p>
+    <p class="error-box" id="solve-error" hidden></p>
+  </div>
+
+  <div>
+    <h3 class="t-h4" id="output-head">Live output</h3>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-out-v_hose" data-metric="v_hose"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="out-v_hose">Hose velocity (m/s)</label>
+        <input class="field" type="number" id="out-v_hose" step="0.01">
+      </div>
+    </div>
+    <div class="band-row"><span class="tag" id="band-tag"></span></div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-out-F_jet" data-metric="F_jet"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="out-F_jet">F_jet operating (N)</label>
+        <input class="field" type="number" id="out-F_jet" step="0.1">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-out-dP_effective" data-metric="dP_effective"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="out-dP_effective">ΔP effective (psi)</label>
+        <input class="field" type="number" id="out-dP_effective" step="0.1">
+      </div>
+    </div>
+    <p class="t-caption" id="infeasible-tag" style="color:var(--signal);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))" hidden></p>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="lock-out-burst_margin" data-metric="burst_margin"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="out-burst_margin">Burst margin (×)</label>
+        <input class="field" type="number" id="out-burst_margin" step="0.01">
+      </div>
+    </div>
+    <p class="t-caption" id="burst-tag" style="color:var(--signal);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))" hidden></p>
+
+    <h4 class="section-head t-h4">ΔP breakdown</h4>
+    <table class="dp-table">
+      <tr><td>ΔP rated</td><td id="dp-rated"></td></tr>
+      <tr><td>− ΔP friction</td><td id="dp-friction"></td></tr>
+      <tr><td>− ΔP elevation</td><td id="dp-elevation"></td></tr>
+      <tr id="dp-effective-row"><td>= ΔP effective</td><td id="dp-effective"></td></tr>
+    </table>
+
+    <h4 class="section-head t-h4">Mass &amp; structural reference</h4>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">F_jet (ΔP_rated × SF=2)</div><div class="stat-value" id="stat-fjet-structural"></div></div>
+      <div class="stat-card"><div class="stat-label">Hose mass (empty)</div><div class="stat-value" id="stat-hose-mass"></div></div>
+      <div class="stat-card"><div class="stat-label">Water in hose</div><div class="stat-value" id="stat-water-mass"></div></div>
+      <div class="stat-card"><div class="stat-label">Total suspended mass</div><div class="stat-value" id="stat-total-mass"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="calc.js"></script>
+<script>
+const calc = window.TarsaCalc;
+
+const PSI_TO_PA = 6894.757293168361;
+const GAL_TO_M3 = 0.00378541;
+const psiToPa = (x) => x * PSI_TO_PA;
+const paToPsi = (x) => x / PSI_TO_PA;
+const gpmToM3s = (x) => (x * GAL_TO_M3) / 60.0;
+const m3sToGpm = (x) => (x * 60.0) / GAL_TO_M3;
+const mmToM = (x) => x / 1000.0;
+const mToMm = (x) => x * 1000.0;
+
+const INPUT_VARS = ["id_m", "L_m", "H_m", "Q_m3s", "dP_rated_pa"];
+const METRIC_KEYS = ["v_hose", "F_jet", "dP_effective", "burst_margin"];
+
+// var (calc.py-style key) -> DOM id / unit conversion, mirroring app.py's SOLVABLE dict
+const SOLVABLE = {
+  id_m: { elId: "in-id_mm", toCalc: mmToM, fromCalc: mToMm, label: "Hose ID (mm)" },
+  L_m: { elId: "in-L_m", toCalc: (x) => x, fromCalc: (x) => x, label: "Hose length L (m)" },
+  H_m: { elId: "in-H_m", toCalc: (x) => x, fromCalc: (x) => x, label: "Climb height H (m)" },
+  Q_m3s: { elId: "in-Q_gpm", toCalc: gpmToM3s, fromCalc: m3sToGpm, label: "Flow Q (GPM)" },
+  dP_rated_pa: { elId: "in-dP_rated_psi", toCalc: psiToPa, fromCalc: paToPsi, label: "Pump rated ΔP (psi)" },
+};
+
+const METRIC_META = {
+  v_hose: { elId: "out-v_hose", toDisp: (x) => x, toCalc: (x) => x, fmt: (x) => x.toFixed(2) },
+  F_jet: { elId: "out-F_jet", toDisp: (x) => x, toCalc: (x) => x, fmt: (x) => x.toFixed(1) },
+  dP_effective: { elId: "out-dP_effective", toDisp: paToPsi, toCalc: psiToPa, fmt: (x) => x.toFixed(1) },
+  burst_margin: { elId: "out-burst_margin", toDisp: (x) => x, toCalc: (x) => x, fmt: (x) => x.toFixed(2) },
+};
+
+const BAND_TAG = { ideal: "clean", acceptable: "soiled", erosion_risk: "fault" };
+const BAND_LABEL = { ideal: "Ideal", acceptable: "Acceptable", erosion_risk: "Erosion risk" };
+
+const state = {
+  id_mm: 15.9, L_m: 30.0, H_m: 20.0, Q_gpm: 11.5, dP_rated_psi: 300.0,
+  roughness_mm: 0.005, T_c: 20.0, Cv: 1.0, weight_per_m: 0.22, p_burst_psi: 4000.0,
+  locks: { id_m: true, L_m: true, H_m: true, Q_m3s: true, dP_rated_pa: true },
+  activeTarget: null,
+  solveError: null,
+};
+
+function getCalcInputs() {
+  return {
+    id_m: mmToM(state.id_mm),
+    L_m: state.L_m,
+    H_m: state.H_m,
+    Q_m3s: gpmToM3s(state.Q_gpm),
+    dP_rated_pa: psiToPa(state.dP_rated_psi),
+    Cv: state.Cv,
+    roughness_m: mmToM(state.roughness_mm),
+    T_celsius: state.T_c,
+    weight_per_m: state.weight_per_m,
+    p_burst_pa: psiToPa(state.p_burst_psi),
+  };
+}
+
+function toggleInputLock(varName) {
+  const wasLocked = state.locks[varName];
+  if (wasLocked) {
+    for (const v of INPUT_VARS) state.locks[v] = v !== varName;
+  } else {
+    state.locks[varName] = true;
+  }
+  state.solveError = null;
+  render();
+}
+
+function toggleOutputLock(metricKey) {
+  const unlocked = INPUT_VARS.filter((v) => !state.locks[v]);
+  const solving = unlocked.length === 1;
+  if (!solving) return;
+  state.activeTarget = state.activeTarget === metricKey ? null : metricKey;
+  state.solveError = null;
+  render();
+}
+
+function loadP40Defaults(psi) {
+  state.Q_gpm = 11.5;
+  state.dP_rated_psi = psi;
+  render();
+}
+
+function solveFromOutput(metricKey, unknownVar) {
+  const meta = METRIC_META[metricKey];
+  const raw = parseFloat(document.getElementById(meta.elId).value);
+  if (Number.isNaN(raw)) return;
+  const targetCalc = meta.toCalc(raw);
+  const fixedInputs = getCalcInputs();
+  try {
+    const result = calc.solveFor(unknownVar, metricKey, targetCalc, fixedInputs);
+    setInputStateFromCalc(unknownVar, result);
+    state.solveError = null;
+  } catch (e) {
+    state.solveError = e.message;
+  }
+  render();
+}
+
+function setInputStateFromCalc(varName, calcValue) {
+  const meta = SOLVABLE[varName];
+  const dispValue = meta.fromCalc(calcValue);
+  switch (varName) {
+    case "id_m": state.id_mm = dispValue; break;
+    case "L_m": state.L_m = dispValue; break;
+    case "H_m": state.H_m = dispValue; break;
+    case "Q_m3s": state.Q_gpm = dispValue; break;
+    case "dP_rated_pa": state.dP_rated_psi = dispValue; break;
+  }
+}
+
+function bindPlainInput(elId, stateKey) {
+  const el = document.getElementById(elId);
+  el.addEventListener("input", () => {
+    const v = parseFloat(el.value);
+    if (!Number.isNaN(v)) {
+      state[stateKey] = v;
+      render();
+    }
+  });
+}
+
+function render() {
+  const unlocked = INPUT_VARS.filter((v) => !state.locks[v]);
+  const solving = unlocked.length === 1;
+  const unknownVar = solving ? unlocked[0] : null;
+
+  // --- input lock buttons + field enable state ---
+  for (const v of INPUT_VARS) {
+    const btn = document.getElementById(`lock-${v}`);
+    const locked = state.locks[v];
+    btn.classList.toggle("active", locked);
+    btn.querySelector(".material-symbols-sharp").textContent = locked ? "lock" : "lock_open";
+    btn.title = locked
+      ? "Locked — fixed value. Click to unlock and solve for this."
+      : "Unlocked — this is the value being solved for. Click to lock it.";
+    const input = document.getElementById(SOLVABLE[v].elId);
+    input.disabled = !locked;
+  }
+
+  // --- status caption ---
+  const statusEl = document.getElementById("solve-status");
+  if (!solving) {
+    statusEl.innerHTML = unlocked.length === 0
+      ? "All inputs locked — pure forward mode. Unlock one to enable solving."
+      : `Unlock exactly one input to solve. Currently unlocked: ${unlocked.length}.`;
+  } else {
+    statusEl.innerHTML = `Solving for <b>${SOLVABLE[unknownVar].label}</b> — lock an output to set the target.`;
+  }
+
+  const errEl = document.getElementById("solve-error");
+  if (state.solveError) {
+    errEl.hidden = false;
+    errEl.textContent = state.solveError;
+  } else {
+    errEl.hidden = true;
+  }
+
+  // --- compute live result ---
+  const inputs = getCalcInputs();
+  const result = calc.forwardSolve(inputs);
+
+  // sync locked input display values (in case a solve changed them)
+  document.getElementById("in-id_mm").value = state.id_mm;
+  document.getElementById("in-L_m").value = state.L_m;
+  document.getElementById("in-H_m").value = state.H_m;
+  document.getElementById("in-Q_gpm").value = state.Q_gpm;
+  document.getElementById("in-dP_rated_psi").value = state.dP_rated_psi;
+  document.getElementById("in-roughness_mm").value = state.roughness_mm;
+  document.getElementById("in-T_c").value = state.T_c;
+  document.getElementById("in-Cv").value = state.Cv;
+  document.getElementById("in-weight_per_m").value = state.weight_per_m;
+  document.getElementById("in-p_burst_psi").value = state.p_burst_psi;
+
+  document.getElementById("output-head").textContent = solving ? "Targets" : "Live output";
+
+  // --- output rows ---
+  for (const metricKey of METRIC_KEYS) {
+    const meta = METRIC_META[metricKey];
+    const btn = document.getElementById(`lock-out-${metricKey}`);
+    const input = document.getElementById(meta.elId);
+    const isActive = solving && state.activeTarget === metricKey;
+
+    btn.disabled = !solving;
+    btn.classList.toggle("active", isActive);
+    btn.querySelector(".material-symbols-sharp").textContent = isActive ? "lock" : "lock_open";
+    btn.title = isActive
+      ? "Active target — editable, drives the solve."
+      : solving
+      ? "Click to make this the active target."
+      : "Unlock exactly one input to enable.";
+
+    input.disabled = !isActive;
+    if (!isActive) {
+      input.value = meta.fmt(meta.toDisp(result[metricKey]));
+    }
+    // when active, leave the field's current typed value alone (don't
+    // clobber what the user is typing) — it's only re-seeded when it
+    // becomes active again via the lock-toggle handler below.
+  }
+
+  // --- velocity band tag ---
+  const bandTag = document.getElementById("band-tag");
+  const band = result.velocity_band;
+  bandTag.className = `tag tag--${BAND_TAG[band]}`;
+  bandTag.textContent = BAND_LABEL[band];
+
+  // --- infeasible / burst tags ---
+  const infeasibleTag = document.getElementById("infeasible-tag");
+  infeasibleTag.hidden = result.feasible;
+  infeasibleTag.textContent = "Infeasible — pump cannot overcome losses";
+
+  const burstTag = document.getElementById("burst-tag");
+  burstTag.hidden = result.burst_pass;
+  burstTag.textContent = "Below SF=2";
+
+  // --- ΔP breakdown table ---
+  document.getElementById("dp-rated").textContent = `${(inputs.dP_rated_pa / PSI_TO_PA).toFixed(0)} psi`;
+  document.getElementById("dp-friction").textContent = `${(result.dP_friction / PSI_TO_PA).toFixed(1)} psi`;
+  document.getElementById("dp-elevation").textContent = `${(result.dP_elevation / PSI_TO_PA).toFixed(1)} psi`;
+  document.getElementById("dp-effective").textContent = `${(result.dP_effective / PSI_TO_PA).toFixed(1)} psi`;
+  document.getElementById("dp-effective-row").classList.toggle("infeasible", !result.feasible);
+
+  // --- mass / structural stats ---
+  document.getElementById("stat-fjet-structural").textContent = `${result.F_jet_structural.toFixed(1)} N`;
+  document.getElementById("stat-hose-mass").textContent = `${result.hose_mass.toFixed(2)} kg`;
+  document.getElementById("stat-water-mass").textContent = `${result.water_mass.toFixed(2)} kg`;
+  document.getElementById("stat-total-mass").textContent = `${result.total_suspended_mass.toFixed(2)} kg`;
+}
+
+// --- wire up events ---
+for (const v of INPUT_VARS) {
+  document.getElementById(`lock-${v}`).addEventListener("click", () => toggleInputLock(v));
+}
+for (const metricKey of METRIC_KEYS) {
+  document.getElementById(`lock-out-${metricKey}`).addEventListener("click", () => toggleOutputLock(metricKey));
+}
+
+bindPlainInput("in-id_mm", "id_mm");
+bindPlainInput("in-L_m", "L_m");
+bindPlainInput("in-H_m", "H_m");
+bindPlainInput("in-Q_gpm", "Q_gpm");
+bindPlainInput("in-dP_rated_psi", "dP_rated_psi");
+bindPlainInput("in-roughness_mm", "roughness_mm");
+bindPlainInput("in-T_c", "T_c");
+bindPlainInput("in-Cv", "Cv");
+bindPlainInput("in-weight_per_m", "weight_per_m");
+bindPlainInput("in-p_burst_psi", "p_burst_psi");
+
+for (const metricKey of METRIC_KEYS) {
+  const meta = METRIC_META[metricKey];
+  document.getElementById(meta.elId).addEventListener("change", () => {
+    const unlocked = INPUT_VARS.filter((v) => !state.locks[v]);
+    if (unlocked.length === 1 && state.activeTarget === metricKey) {
+      solveFromOutput(metricKey, unlocked[0]);
+    }
+  });
+}
+
+document.getElementById("btn-p40-300").addEventListener("click", () => loadP40Defaults(300.0));
+document.getElementById("btn-p40-290").addEventListener("click", () => loadP40Defaults(290.0));
+
+render();
+</script>
+
+</body>
+</html>
