@@ -133,11 +133,16 @@ function haalandF(Re, relRough) {
   approx(calc.waterMassTotal(idM, LM), expected, 1e-9, "water_mass_total");
 }
 
+// Mass is driven by H (suspended length: the hose hangs straight from a
+// ground-based reel up to the robot, so only the vertical climb loads the
+// cables), not L (the water's full flow-path length, which can exceed H
+// due to slack coiled at the base and is unrelated to what's actually
+// hanging).
 {
   const inputs = {
     id_m: 0.0159,
-    L_m: 30.0,
-    H_m: 0.0,
+    L_m: 50.0, // deliberately different from H_m, to prove mass ignores it
+    H_m: 20.0,
     Q_m3s: Q_P40,
     dP_rated_pa: 2_068_427.0,
     Cv: 1.0,
@@ -146,8 +151,8 @@ function haalandF(Re, relRough) {
     weight_per_m: 0.22,
   };
   const result = calc.forwardSolve(inputs);
-  approx(result.hose_mass, 0.22 * 30.0, 1e-9, "total_suspended.hose_mass");
-  approx(result.water_mass, calc.waterMassTotal(0.0159, 30.0), 1e-9, "total_suspended.water_mass");
+  approx(result.hose_mass, 0.22 * 20.0, 1e-9, "total_suspended.hose_mass");
+  approx(result.water_mass, calc.waterMassTotal(0.0159, 20.0), 1e-9, "total_suspended.water_mass");
   approx(
     result.total_suspended_mass,
     result.hose_mass + result.water_mass,
@@ -158,6 +163,10 @@ function haalandF(Re, relRough) {
     Math.abs(result.hose_mass - result.total_suspended_mass) > 1e-6,
     "total_suspended.hose_mass_excludes_water"
   );
+
+  const resultLongerL = calc.forwardSolve({ ...inputs, L_m: 150.0 });
+  approx(resultLongerL.hose_mass, result.hose_mass, 1e-9, "total_suspended.mass_ignores_L");
+  approx(resultLongerL.water_mass, result.water_mass, 1e-9, "total_suspended.water_ignores_L");
 }
 
 // --- solveFor: round-trip sanity (not in test_calc.py, but exercises the
@@ -175,6 +184,65 @@ function haalandF(Re, relRough) {
   const solvedIdM = calc.solveFor("id_m", "v_hose", 4.0, fixedInputs);
   const vCheck = calc.hoseVelocity(Q_P40, solvedIdM);
   approx(vCheck, 4.0, 1e-6, "solve_for.v_hose_round_trip");
+}
+
+// ---------------------------------------------------------------------
+// solveFor2 — locking 2 simultaneous targets (nested bisection)
+// ---------------------------------------------------------------------
+
+const BASE_2D_INPUTS = {
+  id_m: 0.0159,
+  L_m: 30.0,
+  H_m: 20.0,
+  Q_m3s: Q_P40,
+  dP_rated_pa: 300 * PSI_TO_PA,
+  Cv: 1.0,
+  roughness_m: 0.005e-3,
+  T_celsius: 20.0,
+  weight_per_m: 0.22,
+  p_burst_pa: 4000 * PSI_TO_PA,
+};
+
+// A solution is known to exist by construction: forward_solve the base
+// inputs, then feed its own v_hose/F_jet back in as 2 targets while
+// varying the same 2 inputs that produced them — must recover them.
+{
+  const baseline = calc.forwardSolve(BASE_2D_INPUTS);
+  const result = calc.solveFor2(
+    "id_m", "L_m", "v_hose", baseline.v_hose, "F_jet", baseline.F_jet,
+    BASE_2D_INPUTS
+  );
+  approx(result.id_m, 0.0159, 1e-4, "solveFor2.round_trip.id_m");
+  approx(result.L_m, 30.0, 1e-4, "solveFor2.round_trip.L_m");
+}
+
+// burst_margin depends only on dP_rated_pa among the 5 lockable inputs.
+// Solving it alongside v_hose by varying {dP_rated_pa, Q_m3s} must
+// succeed. Achievable burst_margin range given p_burst_pa fixed at 4000
+// psi and dP_rated_pa's bracket (~7.25-435 psi) is ~[9.2, 552]; 13.33
+// (the P40-300psi default case) is comfortably inside that.
+{
+  const result = calc.solveFor2(
+    "dP_rated_pa", "Q_m3s", "burst_margin", 13.33, "v_hose", 4.0,
+    BASE_2D_INPUTS
+  );
+  const checkInputs = { ...BASE_2D_INPUTS, dP_rated_pa: result.dP_rated_pa, Q_m3s: result.Q_m3s };
+  const checkResult = calc.forwardSolve(checkInputs);
+  approx(checkResult.burst_margin, 13.33, 1e-3, "solveFor2.burst_margin.burst_margin");
+  approx(checkResult.v_hose, 4.0, 1e-4, "solveFor2.burst_margin.v_hose");
+}
+
+// L_m and H_m affect neither burst_margin nor v_hose — every one of the 4
+// nested-bisection attempts must fail, and the failure must be a clear
+// error, not a wrong answer or a hang.
+{
+  let threw = false;
+  try {
+    calc.solveFor2("L_m", "H_m", "burst_margin", 13.33, "v_hose", 4.0, BASE_2D_INPUTS);
+  } catch (e) {
+    threw = true;
+  }
+  check(threw, "solveFor2.infeasible_combination_throws");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

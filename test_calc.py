@@ -145,10 +145,15 @@ def test_water_mass_total_matches_hand_computed_volume():
 
 
 def test_forward_solve_total_suspended_mass_is_hose_plus_water():
+    """Mass is driven by H (suspended length: the hose hangs straight from
+    a ground-based reel up to the robot, so only the vertical climb loads
+    the cables), not L (the water's full flow-path length, which can
+    exceed H due to slack coiled at the base and is unrelated to what's
+    actually hanging)."""
     inputs = {
         "id_m": 0.0159,
-        "L_m": 30.0,
-        "H_m": 0.0,
+        "L_m": 50.0,  # deliberately different from H_m, to prove mass ignores it
+        "H_m": 20.0,
         "Q_m3s": Q_P40,
         "dP_rated_pa": 2_068_427.0,
         "Cv": 1.0,
@@ -157,12 +162,81 @@ def test_forward_solve_total_suspended_mass_is_hose_plus_water():
         "weight_per_m": 0.22,
     }
     result = calc.forward_solve(inputs)
-    assert result["hose_mass"] == pytest.approx(0.22 * 30.0)
+    assert result["hose_mass"] == pytest.approx(0.22 * 20.0)
     assert result["water_mass"] == pytest.approx(
-        calc.water_mass_total(0.0159, 30.0)
+        calc.water_mass_total(0.0159, 20.0)
     )
     assert result["total_suspended_mass"] == pytest.approx(
         result["hose_mass"] + result["water_mass"]
     )
     # Hose mass must never silently include water.
     assert result["hose_mass"] != pytest.approx(result["total_suspended_mass"])
+    # Changing L alone (flow-path length) must not move the mass numbers.
+    inputs_longer_L = dict(inputs)
+    inputs_longer_L["L_m"] = 150.0
+    result_longer_L = calc.forward_solve(inputs_longer_L)
+    assert result_longer_L["hose_mass"] == pytest.approx(result["hose_mass"])
+    assert result_longer_L["water_mass"] == pytest.approx(result["water_mass"])
+
+
+# ---------------------------------------------------------------------------
+# solve_for_2 — locking 2 simultaneous targets (nested bisection)
+# ---------------------------------------------------------------------------
+
+_BASE_2D_INPUTS = {
+    "id_m": 0.0159,
+    "L_m": 30.0,
+    "H_m": 20.0,
+    "Q_m3s": Q_P40,
+    "dP_rated_pa": 300 * PSI_TO_PA,
+    "Cv": 1.0,
+    "roughness_m": 0.005e-3,
+    "T_celsius": 20.0,
+    "weight_per_m": 0.22,
+    "p_burst_pa": 4000 * PSI_TO_PA,
+}
+
+
+def test_solve_for_2_round_trip_recovers_original_inputs():
+    """A solution is known to exist by construction: forward_solve the base
+    inputs, then feed its own v_hose/F_jet back in as 2 targets while
+    varying the same 2 inputs that produced them — must recover them."""
+    baseline = calc.forward_solve(_BASE_2D_INPUTS)
+    result = calc.solve_for_2(
+        "id_m", "L_m", "v_hose", baseline["v_hose"], "F_jet", baseline["F_jet"],
+        _BASE_2D_INPUTS,
+    )
+    assert result["id_m"] == pytest.approx(0.0159, rel=1e-4)
+    assert result["L_m"] == pytest.approx(30.0, rel=1e-4)
+
+
+def test_solve_for_2_burst_margin_requires_dP_rated_pa():
+    """burst_margin depends only on dP_rated_pa among the 5 lockable
+    inputs. Solving it alongside v_hose by varying {dP_rated_pa, Q_m3s}
+    must succeed (dP_rated_pa can reach any burst_margin; Q_m3s can reach
+    any v_hose independently)."""
+    # burst_margin = p_burst_pa / dP_rated_pa; with p_burst_pa fixed at 4000
+    # psi and dP_rated_pa's bracket capped at ~435 psi, achievable burst
+    # margins are roughly [9.2, 552] — 13.33 (the P40-300psi default case)
+    # is comfortably inside that.
+    result = calc.solve_for_2(
+        "dP_rated_pa", "Q_m3s", "burst_margin", 13.33, "v_hose", 4.0,
+        _BASE_2D_INPUTS,
+    )
+    check_inputs = dict(_BASE_2D_INPUTS)
+    check_inputs["dP_rated_pa"] = result["dP_rated_pa"]
+    check_inputs["Q_m3s"] = result["Q_m3s"]
+    check = calc.forward_solve(check_inputs)
+    assert check["burst_margin"] == pytest.approx(13.33, rel=1e-3)
+    assert check["v_hose"] == pytest.approx(4.0, rel=1e-4)
+
+
+def test_solve_for_2_infeasible_when_neither_variable_affects_either_target():
+    """L_m and H_m affect neither burst_margin nor v_hose — every one of
+    the 4 nested-bisection attempts must fail, and the failure must be a
+    clear error, not a wrong answer or a hang."""
+    with pytest.raises(ValueError):
+        calc.solve_for_2(
+            "L_m", "H_m", "burst_margin", 13.33, "v_hose", 4.0,
+            _BASE_2D_INPUTS,
+        )

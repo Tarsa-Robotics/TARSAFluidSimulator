@@ -138,8 +138,12 @@ def forward_solve(inputs: dict) -> dict:
 
     margin = burst_margin(p_burst_pa, dP_rated_pa) if dP_rated_pa else float("inf")
 
-    hose_mass = hose_mass_total(weight_per_m, L_m)
-    water_mass = water_mass_total(id_m, L_m)
+    # Mass uses H (suspended length), not L (total flow-path length): the
+    # hose hangs straight from a ground-based reel up to the robot, so the
+    # portion actually loading the cables is the vertical climb, not the
+    # full flow length (any slack beyond H sits coiled at the base).
+    hose_mass = hose_mass_total(weight_per_m, H_m)
+    water_mass = water_mass_total(id_m, H_m)
 
     return {
         "mu": mu,
@@ -173,3 +177,64 @@ def solve_for(unknown_var: str, target_metric: str, target_value: float,
         return forward_solve(inputs)[target_metric] - target_value
 
     return brentq(objective, lo, hi)
+
+
+def solve_for_2(var_a: str, var_b: str, metric_a: str, target_a: float,
+                 metric_b: str, target_b: float, fixed_inputs: dict) -> dict:
+    """Solve 2 unknowns against 2 simultaneous targets — a 2x2 nonlinear
+    system. Deliberately NOT a multi-dimensional Newton-Raphson: instead,
+    nested bisection built entirely out of the proven 1D solve_for/brentq
+    primitives. One variable (outer) is root-found; for each candidate
+    outer value, the other variable (inner) is solved exactly via the
+    existing 1D solve_for to hit its assigned target; the outer root-find
+    then drives its own target to zero. This keeps brentq's
+    guaranteed-convergence-given-a-bracketing-sign-change property at both
+    levels, rather than introducing a method that can silently diverge.
+
+    Not every (var_a, var_b, metric_a, metric_b) combination is solvable —
+    e.g. burst_margin depends only on dP_rated_pa among the 5 lockable
+    inputs, so targeting it while dP_rated_pa is held fixed is genuinely
+    infeasible, not a solver bug. Which variable plays outer vs inner, and
+    which variable is assigned to which target, both affect whether a given
+    nested formulation happens to satisfy the sign-change precondition — so
+    all 4 (2 metric-assignments x 2 outer/inner role choices) are tried
+    before giving up.
+    """
+
+    def attempt(outer_var, outer_metric, outer_target, inner_var, inner_metric, inner_target):
+        lo, hi = BRACKETS[outer_var]
+
+        def g(outer_value):
+            outer_fixed = dict(fixed_inputs)
+            outer_fixed[outer_var] = outer_value
+            inner_value = solve_for(inner_var, inner_metric, inner_target, outer_fixed)
+            final_inputs = dict(outer_fixed)
+            final_inputs[inner_var] = inner_value
+            return forward_solve(final_inputs)[outer_metric] - outer_target
+
+        outer_value = brentq(g, lo, hi)
+        outer_fixed = dict(fixed_inputs)
+        outer_fixed[outer_var] = outer_value
+        inner_value = solve_for(inner_var, inner_metric, inner_target, outer_fixed)
+        return {outer_var: outer_value, inner_var: inner_value}
+
+    attempts = [
+        lambda: attempt(var_a, metric_a, target_a, var_b, metric_b, target_b),
+        lambda: attempt(var_a, metric_b, target_b, var_b, metric_a, target_a),
+        lambda: attempt(var_b, metric_a, target_a, var_a, metric_b, target_b),
+        lambda: attempt(var_b, metric_b, target_b, var_a, metric_a, target_a),
+    ]
+
+    last_error = None
+    for try_attempt in attempts:
+        try:
+            return try_attempt()
+        except ValueError as e:
+            last_error = e
+
+    raise ValueError(
+        f"solve_for_2: no solution for {{{metric_a}={target_a}, {metric_b}={target_b}}} "
+        f"varying {{{var_a}, {var_b}}}. This combination may not be solvable "
+        f"(e.g. a target that doesn't depend on either unlocked input). "
+        f"Last attempt: {last_error}"
+    )

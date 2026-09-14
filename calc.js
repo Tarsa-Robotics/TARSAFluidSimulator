@@ -177,8 +177,12 @@
 
     const margin = dPRatedPa ? burstMargin(pBurstPa, dPRatedPa) : Infinity;
 
-    const hoseMass = hoseMassTotal(weightPerM, LM);
-    const waterMass = waterMassTotal(idM, LM);
+    // Mass uses H (suspended length), not L (total flow-path length): the
+    // hose hangs straight from a ground-based reel up to the robot, so the
+    // portion actually loading the cables is the vertical climb, not the
+    // full flow length (any slack beyond H sits coiled at the base).
+    const hoseMass = hoseMassTotal(weightPerM, HM);
+    const waterMass = waterMassTotal(idM, HM);
 
     return {
       mu,
@@ -210,6 +214,64 @@
     return bisect(objective, lo, hi);
   }
 
+  /**
+   * Solve 2 unknowns against 2 simultaneous targets — a 2x2 nonlinear
+   * system. Deliberately NOT a multi-dimensional Newton-Raphson: instead,
+   * nested bisection built entirely out of the proven 1D `solveFor`/`bisect`
+   * primitives above. One variable (outer) is bisected; for each candidate
+   * outer value, the other variable (inner) is solved exactly via the
+   * existing 1D solveFor to hit its assigned target; the outer bisection
+   * then drives its own target to zero. This keeps bisection's
+   * guaranteed-convergence-given-a-bracketing-sign-change property at both
+   * levels, rather than introducing a method that can silently diverge.
+   *
+   * Not every (varA, varB, metricA, metricB) combination is solvable — e.g.
+   * burst_margin depends only on dP_rated_pa among the 5 lockable inputs,
+   * so targeting it while dP_rated_pa is held fixed is genuinely
+   * infeasible, not a solver bug. Which variable plays "outer" vs "inner",
+   * and which variable is assigned to which target, both affect whether a
+   * given nested-bisection formulation happens to satisfy bisection's
+   * sign-change precondition — so all 4 (2 metric-assignments x 2
+   * outer/inner role choices) are tried before giving up.
+   */
+  function solveFor2(varA, varB, metricA, targetA, metricB, targetB, fixedInputs) {
+    function attempt(outerVar, outerMetric, outerTarget, innerVar, innerMetric, innerTarget) {
+      const [outerLo, outerHi] = BRACKETS[outerVar];
+      function g(outerValue) {
+        const outerFixed = { ...fixedInputs, [outerVar]: outerValue };
+        const innerValue = solveFor(innerVar, innerMetric, innerTarget, outerFixed);
+        const finalInputs = { ...outerFixed, [innerVar]: innerValue };
+        return forwardSolve(finalInputs)[outerMetric] - outerTarget;
+      }
+      const outerValue = bisect(g, outerLo, outerHi);
+      const outerFixed = { ...fixedInputs, [outerVar]: outerValue };
+      const innerValue = solveFor(innerVar, innerMetric, innerTarget, outerFixed);
+      return { [outerVar]: outerValue, [innerVar]: innerValue };
+    }
+
+    const attempts = [
+      () => attempt(varA, metricA, targetA, varB, metricB, targetB),
+      () => attempt(varA, metricB, targetB, varB, metricA, targetA),
+      () => attempt(varB, metricA, targetA, varA, metricB, targetB),
+      () => attempt(varB, metricB, targetB, varA, metricA, targetA),
+    ];
+
+    let lastError = null;
+    for (const tryAttempt of attempts) {
+      try {
+        return tryAttempt();
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw new Error(
+      `solveFor2: no solution for {${metricA}=${targetA}, ${metricB}=${targetB}} ` +
+        `varying {${varA}, ${varB}}. This combination may not be solvable ` +
+        `(e.g. a target that doesn't depend on either unlocked input). ` +
+        `Last attempt: ${lastError ? lastError.message : "unknown"}`
+    );
+  }
+
   const TarsaCalc = {
     RHO_WATER,
     G,
@@ -230,6 +292,7 @@
     velocityBand,
     forwardSolve,
     solveFor,
+    solveFor2,
   };
 
   if (typeof module !== "undefined" && module.exports) {
