@@ -119,6 +119,7 @@
   <div>
     <h3 class="t-h4">Inputs</h3>
 
+    <h4 class="section-head t-h4" style="margin-top:0">Hose specs</h4>
     <div class="lockrow">
       <button class="lock-btn" id="lock-id_m" data-var="id_m"><span class="material-symbols-sharp">lock</span></button>
       <div class="field-col">
@@ -143,6 +144,20 @@
       </div>
     </div>
 
+    <div class="plain-field">
+      <label class="field-label" for="in-roughness_mm">Roughness ε (mm) — assumed default, not sourced</label>
+      <input class="field" type="number" id="in-roughness_mm" step="0.001" min="0" max="1">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-weight_per_m">Hose weight (kg/m) — datasheet value, not geometric</label>
+      <input class="field" type="number" id="in-weight_per_m" step="0.01" min="0" max="5">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="in-p_burst_psi">Hose burst pressure (psi)</label>
+      <input class="field" type="number" id="in-p_burst_psi" step="50" min="0" max="10000">
+    </div>
+
+    <h4 class="section-head t-h4">Pump specs</h4>
     <div class="lockrow">
       <button class="lock-btn" id="lock-Q_m3s" data-var="Q_m3s"><span class="material-symbols-sharp">lock</span></button>
       <div class="field-col">
@@ -160,24 +175,14 @@
     </div>
 
     <div class="plain-field">
-      <label class="field-label" for="in-roughness_mm">Roughness ε (mm) — assumed default, not sourced</label>
-      <input class="field" type="number" id="in-roughness_mm" step="0.001" min="0" max="1">
-    </div>
-    <div class="plain-field">
-      <label class="field-label" for="in-T_c">Water temperature (°C)</label>
-      <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
-    </div>
-    <div class="plain-field">
       <label class="field-label" for="in-Cv">Nozzle Cv</label>
       <input class="field" type="number" id="in-Cv" step="0.01" min="0.5" max="1">
     </div>
+
+    <h4 class="section-head t-h4">Water specs</h4>
     <div class="plain-field">
-      <label class="field-label" for="in-weight_per_m">Hose weight (kg/m) — datasheet value, not geometric</label>
-      <input class="field" type="number" id="in-weight_per_m" step="0.01" min="0" max="5">
-    </div>
-    <div class="plain-field">
-      <label class="field-label" for="in-p_burst_psi">Hose burst pressure (psi)</label>
-      <input class="field" type="number" id="in-p_burst_psi" step="50" min="0" max="10000">
+      <label class="field-label" for="in-T_c">Water temperature (°C)</label>
+      <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
     </div>
 
     <div class="datum" style="margin:var(--sp-5) 0"></div>
@@ -237,6 +242,7 @@
       <div class="stat-card"><div class="stat-label">Hose mass (empty, suspended)</div><div class="stat-value" id="stat-hose-mass"></div></div>
       <div class="stat-card"><div class="stat-label">Water in suspended hose</div><div class="stat-value" id="stat-water-mass"></div></div>
       <div class="stat-card"><div class="stat-label">Total suspended mass</div><div class="stat-value" id="stat-total-mass"></div></div>
+      <div class="stat-card"><div class="stat-label">Hydraulic power (Q &times; &Delta;P_rated)</div><div class="stat-value" id="stat-hydraulic-power"></div></div>
     </div>
   </div>
 </div>
@@ -275,6 +281,7 @@
     <div class="legend-row"><span class="legend-sym">F<sub>jet</sub></span><span class="legend-desc">Jet reaction force (N)</span></div>
     <div class="legend-row"><span class="legend-sym">P<sub>burst</sub></span><span class="legend-desc">Hose burst pressure rating (Pa)</span></div>
     <div class="legend-row"><span class="legend-sym">w</span><span class="legend-desc">Hose weight per length, datasheet value (kg/m)</span></div>
+    <div class="legend-row"><span class="legend-sym">P<sub>hyd</sub></span><span class="legend-desc">Hydraulic power at rated pressure and flow (W)</span></div>
   </div>
 
   <div class="formula-block">
@@ -381,23 +388,37 @@
 
   <div class="formula-block">
     <div class="step-no">14</div>
+    <h5>Hydraulic power</h5>
+    <div class="formula-eq">P<sub>hyd</sub> = Q &middot; ΔP<sub>rated</sub></div>
+    <p class="formula-note">
+      Fluid power the pump must deliver at its rated pressure and flow, shown in the stat card
+      as both watts and horsepower. This is <i>not</i> shaft/motor power &mdash; a real drive
+      motor needs more than this to cover the pump's mechanical and volumetric losses, which
+      aren't modeled here. Other pump-spec numbers like RPM, displacement, or the motor's own
+      rated HP don't enter any formula on this page: they determine Q (which you enter directly)
+      but don't change the downstream hydraulics once Q and ΔP<sub>rated</sub> are known.
+    </p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">15</div>
     <h5>Water viscosity vs. temperature</h5>
     <div class="formula-eq">μ(T) &mdash; linear interpolation over reference values at 0, 10, 20, 30, 40 &deg;C</div>
     <p class="formula-note">Standard CRC reference data, not a fitted curve.</p>
   </div>
 
   <div class="formula-block">
-    <div class="step-no">15</div>
+    <div class="step-no">16</div>
     <h5>Solve mode &mdash; 1 target</h5>
     <p class="formula-note">
       When you lock one output as the target, the one unlocked input is varied by the same
       bisection root-finder until the target metric above matches what you typed &mdash; i.e.
-      it numerically inverts steps 01&ndash;13 rather than using a separate formula.
+      it numerically inverts steps 01&ndash;14 rather than using a separate formula.
     </p>
   </div>
 
   <div class="formula-block">
-    <div class="step-no">16</div>
+    <div class="step-no">17</div>
     <h5>Solve mode &mdash; 2 simultaneous targets</h5>
     <p class="formula-note">
       With 2 inputs unlocked and 2 outputs locked, this becomes a 2&times;2 nonlinear system
@@ -418,6 +439,7 @@ const calc = window.TarsaCalc;
 
 const PSI_TO_PA = 6894.757293168361;
 const GAL_TO_M3 = 0.003785411784; // exact US liquid gallon, m^3
+const WATTS_PER_HP = 745.6998715822702; // mechanical horsepower
 const psiToPa = (x) => x * PSI_TO_PA;
 const paToPsi = (x) => x / PSI_TO_PA;
 const gpmToM3s = (x) => (x * GAL_TO_M3) / 60.0;
@@ -706,6 +728,8 @@ function render() {
   document.getElementById("stat-hose-mass").textContent = `${result.hose_mass.toFixed(2)} kg`;
   document.getElementById("stat-water-mass").textContent = `${result.water_mass.toFixed(2)} kg`;
   document.getElementById("stat-total-mass").textContent = `${result.total_suspended_mass.toFixed(2)} kg`;
+  document.getElementById("stat-hydraulic-power").textContent =
+    `${(result.hydraulic_power_w / WATTS_PER_HP).toFixed(2)} HP (${result.hydraulic_power_w.toFixed(0)} W)`;
 }
 
 // --- wire up events ---
@@ -717,8 +741,6 @@ for (const metricKey of METRIC_KEYS) {
 }
 
 bindPlainInput("in-id_mm", "id_mm");
-bindPlainInput("in-L_m", "L_m");
-bindPlainInput("in-H_m", "H_m");
 bindPlainInput("in-Q_gpm", "Q_gpm");
 bindPlainInput("in-dP_rated_psi", "dP_rated_psi");
 bindPlainInput("in-roughness_mm", "roughness_mm");
@@ -726,6 +748,37 @@ bindPlainInput("in-T_c", "T_c");
 bindPlainInput("in-Cv", "Cv");
 bindPlainInput("in-weight_per_m", "weight_per_m");
 bindPlainInput("in-p_burst_psi", "p_burst_psi");
+
+// Hose length L must always be >= climb height H (the hose can't climb
+// higher than it is long). Raising H immediately bumps L up to match, since
+// that only edits the *other* field. Lowering L below H is only clamped on
+// change/blur, not on every keystroke, so typing a multi-digit value isn't
+// interrupted mid-entry.
+const lM_el = document.getElementById("in-L_m");
+const hM_el = document.getElementById("in-H_m");
+
+lM_el.addEventListener("input", () => {
+  const v = parseFloat(lM_el.value);
+  if (!Number.isNaN(v)) {
+    state.L_m = v;
+    render();
+  }
+});
+lM_el.addEventListener("change", () => {
+  if (state.L_m < state.H_m) {
+    state.L_m = state.H_m;
+    render();
+  }
+});
+
+hM_el.addEventListener("input", () => {
+  const v = parseFloat(hM_el.value);
+  if (!Number.isNaN(v)) {
+    state.H_m = v;
+    if (state.L_m < state.H_m) state.L_m = state.H_m;
+    render();
+  }
+});
 
 for (const metricKey of METRIC_KEYS) {
   const meta = METRIC_META[metricKey];

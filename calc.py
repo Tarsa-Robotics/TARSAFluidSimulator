@@ -91,6 +91,16 @@ def burst_margin(p_burst_pa, p_rated_pa):
     return p_burst_pa / p_rated_pa
 
 
+def hydraulic_power(Q_m3s, dP_rated_pa):
+    """Hydraulic power the pump must deliver at rated pressure and flow (W).
+
+    This is the fluid power output (P = Q * dP), not shaft/motor power — a
+    real drive motor needs more than this to cover the pump's mechanical and
+    volumetric losses, which aren't modeled here.
+    """
+    return Q_m3s * dP_rated_pa
+
+
 def hose_mass_total(weight_per_m, length_m):
     return weight_per_m * length_m
 
@@ -145,6 +155,8 @@ def forward_solve(inputs: dict) -> dict:
     hose_mass = hose_mass_total(weight_per_m, H_m)
     water_mass = water_mass_total(id_m, H_m)
 
+    hydraulic_power_w = hydraulic_power(Q_m3s, dP_rated_pa)
+
     return {
         "mu": mu,
         "v_hose": v_hose,
@@ -163,6 +175,7 @@ def forward_solve(inputs: dict) -> dict:
         "hose_mass": hose_mass,
         "water_mass": water_mass,
         "total_suspended_mass": hose_mass + water_mass,
+        "hydraulic_power_w": hydraulic_power_w,
     }
 
 

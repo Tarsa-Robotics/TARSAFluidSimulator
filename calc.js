@@ -134,6 +134,10 @@
     return pBurstPa / pRatedPa;
   }
 
+  function hydraulicPower(QM3s, dPRatedPa) {
+    return QM3s * dPRatedPa;
+  }
+
   function hoseMassTotal(weightPerM, lengthM) {
     return weightPerM * lengthM;
   }
@@ -184,6 +188,8 @@
     const hoseMass = hoseMassTotal(weightPerM, HM);
     const waterMass = waterMassTotal(idM, HM);
 
+    const hydraulicPowerW = hydraulicPower(QM3s, dPRatedPa);
+
     return {
       mu,
       v_hose: vHose,
@@ -202,6 +208,7 @@
       hose_mass: hoseMass,
       water_mass: waterMass,
       total_suspended_mass: hoseMass + waterMass,
+      hydraulic_power_w: hydraulicPowerW,
     };
   }
 
