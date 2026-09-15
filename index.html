@@ -115,6 +115,13 @@
   Positive-displacement: Q stays fixed regardless of ΔP, up to the relief valve.
 </p>
 
+<p class="t-caption" style="color:var(--fg-3);margin:var(--sp-5) 0 -6px">
+  Hose presets, from <code>TARSA_Hose_Selection_Research.md</code> &sect;&sect;2&ndash;4 &mdash;
+  sets ID, weight and burst pressure where the source publishes them, and a 100 m length
+  (assumed max reach). Hover a button for its source figures and caveats.
+</p>
+<div id="hose-presets"></div>
+
 <div class="grid2" style="margin-top:var(--sp-6)">
   <div>
     <h3 class="t-h4">Inputs</h3>
@@ -545,6 +552,132 @@ function loadP40Defaults(psi) {
   render();
 }
 
+// Named hose products pulled from TARSA_Hose_Selection_Research.md §§2-4.
+// Fields left null are genuinely "not published" in the source — the preset
+// leaves that field alone rather than inventing a number. Where a field is
+// derived rather than a direct quote (ID^2-scaled weight, dry weight
+// back-calculated from a hose+water-fill figure, a range's midpoint), the
+// `note` says so; it's shown as the button's tooltip.
+const HOSE_PRESET_LENGTH_M = 100; // assumed max reach, all products
+
+const HOSE_CATEGORIES = [
+  {
+    title: "Soft-wash / pressure-washer hose — TARSA's own pump category (§2)",
+    items: [
+      {
+        name: "MTM Hydro Blue Soft Wash Hose", idLabel: "5/8″", id_mm: 15.9,
+        weight_per_m: null, p_burst_psi: null,
+        note: "300 psi working. OD and weight not published.",
+      },
+      {
+        name: "Flex Tech RT Soft Wash Hose", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: 0.223, p_burst_psi: null,
+        note: "300 psi working — closest match to the Comet P40's rating. " +
+          "0.223 kg/m is a directly published dry-hose figure, the best-sourced weight in the whole doc.",
+      },
+      {
+        name: "Factory Direct Hose (steel-braided, non-marking)", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: null, p_burst_psi: null,
+        note: "3000 psi working, 1-wire-braid reinforced rubber. Weight not published.",
+      },
+      {
+        name: "BE Power Equipment Non-Marking Rubber", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: null, p_burst_psi: null,
+        note: "4500–6000 psi working, as published (range, not a single figure). Weight not published.",
+      },
+    ],
+  },
+  {
+    title: "Water-fed pole hose — doc's own read: too small an ID for TARSA's flow, shown for comparison only (§3)",
+    items: [
+      {
+        name: "SimPole WFP Hose", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: null, p_burst_psi: null,
+        note: "Polyurethane, 95A durometer, kink-resistant. Working/burst pressure and weight not published.",
+      },
+      {
+        name: "ProTool WFP Hose", idLabel: "3/16″", id_mm: 4.8,
+        weight_per_m: null, p_burst_psi: null,
+        note: "Polyurethane. Far below TARSA's needed 3/8– 5/8″ range — doc flags WFP hose " +
+          "as sized for brush wetting, not a cleaning jet. Pressure and weight not published.",
+      },
+      {
+        name: "Dultmeier PU Tubing (NSF-51)", idLabel: "0.245″", id_mm: 6.2,
+        weight_per_m: null, p_burst_psi: 175,
+        note: "150 psi working / 175 psi burst, as published. Doc flags this product's price as anomalous " +
+          "(likely bulk/NSF premium) — treat the spec numbers with the same caution. Weight not published.",
+      },
+    ],
+  },
+  {
+    title: "Drone-tethered cleaning/spray hose (§4)",
+    items: [
+      {
+        name: "ToughTek 3/8″ Drone Hose", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: 0.238, p_burst_psi: 16400,
+        note: "4000 psi working / 16,400 psi burst. Kevlar-reinforced rubber. Weight is the midpoint " +
+          "of the published 0.223–0.253 kg/m range.",
+      },
+      {
+        name: "ToughTek 1/2″ Drone Hose", idLabel: "1/2″", id_mm: 12.7,
+        weight_per_m: null, p_burst_psi: 12000,
+        note: "4000 psi working / 12,000 psi burst, Kevlar-reinforced rubber. Weight not published.",
+      },
+      {
+        name: "SkyHose 5", idLabel: "1/4″", id_mm: 6.35,
+        weight_per_m: 0.089, p_burst_psi: null,
+        note: "2901 psi working. Published 0.121 kg/m is hose+water-fill combined, not dry weight — " +
+          "value here subtracts the water mass filling a 6.35 mm ID hose, i.e. an estimated dry weight, " +
+          "not vendor-published. Burst not published.",
+      },
+      {
+        name: "SkyHose 8", idLabel: "5/16″", id_mm: 7.94,
+        weight_per_m: 0.092, p_burst_psi: null,
+        note: "2901 psi working. Published 0.142 kg/m is hose+water-fill combined; value here is that " +
+          "figure minus the water fill for a 7.94 mm ID hose — an estimated dry weight, not vendor-published.",
+      },
+      {
+        name: "SkyHose 10", idLabel: "3/8″", id_mm: 9.5,
+        weight_per_m: 0.102, p_burst_psi: null,
+        note: "2756 psi working. Published 0.173 kg/m is hose+water-fill combined; value here is that " +
+          "figure minus the water fill for a 9.5 mm ID hose — an estimated dry weight, not vendor-published.",
+      },
+    ],
+  },
+];
+
+function loadHoseProduct(item) {
+  state.id_mm = item.id_mm;
+  if (item.weight_per_m != null) state.weight_per_m = item.weight_per_m;
+  if (item.p_burst_psi != null) state.p_burst_psi = item.p_burst_psi;
+  state.L_m = Math.max(HOSE_PRESET_LENGTH_M, state.H_m);
+  render();
+}
+
+function renderHosePresets() {
+  const container = document.getElementById("hose-presets");
+  for (const category of HOSE_CATEGORIES) {
+    const heading = document.createElement("p");
+    heading.className = "t-caption";
+    heading.style.cssText = "color:var(--fg-2);font-weight:600;margin:var(--sp-4) 0 4px";
+    heading.textContent = category.title;
+    container.appendChild(heading);
+
+    const row = document.createElement("div");
+    row.className = "presets";
+    row.style.marginTop = "0";
+    for (const item of category.items) {
+      const btn = document.createElement("button");
+      btn.className = "btn btn--outline";
+      btn.textContent = `${item.name} — ${item.idLabel} (${item.id_mm} mm)`;
+      btn.title = item.note;
+      btn.addEventListener("click", () => loadHoseProduct(item));
+      row.appendChild(btn);
+    }
+    container.appendChild(row);
+  }
+}
+
 /**
  * Reads whatever's currently typed into the active target field(s) and
  * solves the matching unlocked input(s). No-ops if the active-target count
@@ -791,6 +924,8 @@ for (const metricKey of METRIC_KEYS) {
 
 document.getElementById("btn-p40-300").addEventListener("click", () => loadP40Defaults(300.0));
 document.getElementById("btn-p40-290").addEventListener("click", () => loadP40Defaults(290.0));
+
+renderHosePresets();
 
 const formulasBtn = document.getElementById("btn-show-formulas");
 const formulasPanel = document.getElementById("formulas-panel");
