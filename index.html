@@ -181,12 +181,11 @@
       </div>
     </div>
 
+    <h4 class="section-head t-h4">Other specs</h4>
     <div class="plain-field">
       <label class="field-label" for="in-Cv">Nozzle Cv</label>
       <input class="field" type="number" id="in-Cv" step="0.01" min="0.5" max="1">
     </div>
-
-    <h4 class="section-head t-h4">Water specs</h4>
     <div class="plain-field">
       <label class="field-label" for="in-T_c">Water temperature (°C)</label>
       <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
@@ -224,6 +223,7 @@
         <input class="field" type="number" id="out-dP_effective" step="0.1">
       </div>
     </div>
+    <p class="t-caption" id="dP_effective-bar" style="color:var(--fg-2);margin:-6px 0 4px calc(2.6rem + var(--sp-2))"></p>
     <p class="t-caption" id="infeasible-tag" style="color:var(--signal);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))" hidden></p>
 
     <div class="lockrow">
@@ -445,10 +445,12 @@
 const calc = window.TarsaCalc;
 
 const PSI_TO_PA = 6894.757293168361;
+const PA_TO_BAR = 100000; // exact, 1 bar = 100,000 Pa
 const GAL_TO_M3 = 0.003785411784; // exact US liquid gallon, m^3
 const WATTS_PER_HP = 745.6998715822702; // mechanical horsepower
 const psiToPa = (x) => x * PSI_TO_PA;
 const paToPsi = (x) => x / PSI_TO_PA;
+const paToBar = (x) => x / PA_TO_BAR;
 const gpmToM3s = (x) => (x * GAL_TO_M3) / 60.0;
 const m3sToGpm = (x) => (x * 60.0) / GAL_TO_M3;
 const mmToM = (x) => x / 1000.0;
@@ -834,6 +836,9 @@ function render() {
     // becomes inactive again.
   }
 
+  document.getElementById("dP_effective-bar").textContent =
+    `= ${paToBar(result.dP_effective).toFixed(2)} bar`;
+
   // --- velocity band tag ---
   const bandTag = document.getElementById("band-tag");
   const band = result.velocity_band;
@@ -850,10 +855,14 @@ function render() {
   burstTag.textContent = "Below SF=2";
 
   // --- ΔP breakdown table ---
-  document.getElementById("dp-rated").textContent = `${(inputs.dP_rated_pa / PSI_TO_PA).toFixed(0)} psi`;
-  document.getElementById("dp-friction").textContent = `${(result.dP_friction / PSI_TO_PA).toFixed(1)} psi`;
-  document.getElementById("dp-elevation").textContent = `${(result.dP_elevation / PSI_TO_PA).toFixed(1)} psi`;
-  document.getElementById("dp-effective").textContent = `${(result.dP_effective / PSI_TO_PA).toFixed(1)} psi`;
+  document.getElementById("dp-rated").textContent =
+    `${(inputs.dP_rated_pa / PSI_TO_PA).toFixed(0)} psi (${paToBar(inputs.dP_rated_pa).toFixed(2)} bar)`;
+  document.getElementById("dp-friction").textContent =
+    `${(result.dP_friction / PSI_TO_PA).toFixed(1)} psi (${paToBar(result.dP_friction).toFixed(2)} bar)`;
+  document.getElementById("dp-elevation").textContent =
+    `${(result.dP_elevation / PSI_TO_PA).toFixed(1)} psi (${paToBar(result.dP_elevation).toFixed(2)} bar)`;
+  document.getElementById("dp-effective").textContent =
+    `${(result.dP_effective / PSI_TO_PA).toFixed(1)} psi (${paToBar(result.dP_effective).toFixed(2)} bar)`;
   document.getElementById("dp-effective-row").classList.toggle("infeasible", !result.feasible);
 
   // --- mass / structural stats ---
