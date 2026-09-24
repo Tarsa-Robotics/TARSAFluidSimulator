@@ -26,7 +26,7 @@
     id_m: [0.003, 0.05],
     L_m: [1.0, 200.0],
     H_m: [0.0, 150.0],
-    dP_rated_pa: [50_000.0, 3_000_000.0],
+    dP_rated_pa: [50_000.0, 700_000_000.0],
     Q_m3s: [1e-5, 1e-2],
   };
 
@@ -152,6 +152,88 @@
     return "erosion_risk";
   }
 
+  // Stage 7 — local impact pressure at glass, via footprint-area spreading.
+  // P_local = F_jet / A_footprint. Two independent mechanisms grow the
+  // footprint as the jet travels: (1) the nozzle's designed spray angle
+  // (geometric spreading — dominant once the angle exceeds the jet's
+  // natural turbulent spread, roughly θ >= 15° at these standoffs), and
+  // (2) turbulent free-jet entrainment, which widens the jet even at θ=0
+  // ("pencil" mode). The effective footprint area is whichever mechanism
+  // predicts the larger area — geometric spreading wins at typical
+  // operating standoffs (200mm+) once θ is past its natural-spread angle;
+  // the turbulent term only matters as a floor near θ=0.
+  //
+  // The geometric formulas originate the cone/fan from the nozzle's finite
+  // exit size, not a mathematical point: A_footprint = π·(r_nozzle +
+  // standoff·tan(θ/2))² for cone, width = b_nozzle + 2·standoff·tan(θ/2)
+  // for fan. A point-origin model (r_nozzle = 0) blows up wrong at small
+  // standoff — as standoff -> 0 it predicts a footprint smaller than the
+  // nozzle's own exit, i.e. f_geometric = A_nozzle/A_footprint > 1, which
+  // is physically impossible: the footprint can never shrink below the
+  // exit that's producing it, no matter how close you get. r_nozzle (and,
+  // for fan, b_nozzle) come from continuity, A_nozzle = Q/v_exit — real
+  // geometry, not a tunable.
+  //
+  // Cone/round pattern: A = π·(r_nozzle + standoff·tan(θ/2))² — at large
+  // standoff the r_nozzle term is negligible and area grows as standoff²,
+  // so P_local decays as 1/standoff².
+  // Flat/fan pattern: width = b_nozzle + 2·standoff·tan(θ/2), area = width
+  // × a roughly constant impact-strip length L_strip — at large standoff
+  // area grows ~linearly, so P_local decays as 1/standoff. This is the
+  // real physical reason a fan nozzle holds pressure over distance better
+  // than a cone.
+  //
+  // Turbulent floor, from classical free-jet decay (Rajaratnam): round
+  // jets u_c/u0 = 6.2·D/x, flat jets u_c/u0 = 2.4·√(b/x). Momentum flux
+  // (ρ·u²·A) is conserved along a free jet, so the equivalent turbulent
+  // footprint area is A0 / (u_c/u0)² — and because A0 = π·D²/4 (round) or
+  // A0 = b·L_strip (fan) by definition of the orifice, D and b cancel out
+  // of that ratio algebraically, leaving a floor that depends only on
+  // standoff (and, for fan, the strip length). This floor formula is a
+  // far-field asymptotic approximation, not meant to be evaluated near
+  // standoff = 0 — but it doesn't need to be: the corrected geometric term
+  // already floors at A_nozzle there, so the max() of the two stays
+  // physical at every standoff.
+  const K_ROUND_TURB = 6.2;
+  const K_FLAT_TURB = 5.76; // = 2.4^2, from u_c/u0 = 2.4·sqrt(b/x)
+  const L_STRIP_MM_DEFAULT = 25.0; // fan slot's impact-strip length at exit — assumed, not sourced
+  const P_THRESHOLD_PA_DEFAULT = 800_000.0; // 8 bar, Kim et al. proven floor
+
+  // nozzleAreaMm2 = the nozzle exit's real cross-sectional area (from
+  // continuity, Q/v_exit) — defaults to 0 (mathematical point origin) only
+  // for callers that don't have it, e.g. exploring the pure decay shape.
+  function footprintAreaMm2(pattern, standoffMm, sprayAngleDeg, nozzleAreaMm2 = 0, LStripMm = L_STRIP_MM_DEFAULT) {
+    const tanHalf = Math.tan((sprayAngleDeg * Math.PI) / 360.0);
+    if (pattern === "fan") {
+      const bNozzleMm = LStripMm > 0 ? nozzleAreaMm2 / LStripMm : 0;
+      const widthFootprint = bNozzleMm + 2.0 * standoffMm * tanHalf;
+      const geometric = widthFootprint * LStripMm;
+      const turbulentFloor = (standoffMm / K_FLAT_TURB) * LStripMm;
+      return Math.max(geometric, turbulentFloor);
+    }
+    const rNozzleMm = Math.sqrt(nozzleAreaMm2 / Math.PI);
+    const rFootprint = rNozzleMm + standoffMm * tanHalf;
+    const geometric = Math.PI * rFootprint ** 2;
+    const turbulentFloor = (Math.PI * standoffMm ** 2) / (4.0 * K_ROUND_TURB ** 2);
+    return Math.max(geometric, turbulentFloor);
+  }
+
+  function localImpactPressure(FJetN, footprintMm2) {
+    if (footprintMm2 <= 0) return 0.0;
+    return FJetN / (footprintMm2 * 1e-6); // N / m^2 = Pa
+  }
+
+  // Stage 8 — cleaning verdict.
+  function cleaningRatio(pLocalPa, pThresholdPa) {
+    return pThresholdPa ? pLocalPa / pThresholdPa : Infinity;
+  }
+
+  function cleaningVerdict(r) {
+    if (r >= 2.0) return "green";
+    if (r >= 1.0) return "yellow";
+    return "red";
+  }
+
   function forwardSolve(inputs) {
     const idM = inputs.id_m;
     const LM = inputs.L_m;
@@ -163,6 +245,11 @@
     const TCelsius = inputs.T_celsius ?? 20.0;
     const weightPerM = inputs.weight_per_m ?? 0.0;
     const pBurstPa = inputs.p_burst_pa ?? 0.0;
+    const standoffMm = inputs.standoff_mm ?? 200.0;
+    const sprayAngleDeg = inputs.spray_angle_deg ?? 40.0;
+    const nozzlePattern = inputs.nozzle_pattern ?? "cone";
+    const LStripMm = inputs.L_strip_mm ?? L_STRIP_MM_DEFAULT;
+    const pThresholdPa = inputs.p_threshold_pa ?? P_THRESHOLD_PA_DEFAULT;
 
     const mu = muWater(TCelsius);
     const vHose = hoseVelocity(QM3s, idM);
@@ -190,6 +277,15 @@
 
     const hydraulicPowerW = hydraulicPower(QM3s, dPRatedPa);
 
+    // Nozzle exit area from continuity (Q = A*v), in mm^2 — real geometry,
+    // not a tunable. 0 when infeasible (v_exit=0): footprint value doesn't
+    // matter there since F_jet=0 makes P_local 0 regardless.
+    const nozzleAreaMm2 = vExit > 0 ? ((QM3s / vExit) * 1e6) : 0;
+    const footprintMm2 = footprintAreaMm2(nozzlePattern, standoffMm, sprayAngleDeg, nozzleAreaMm2, LStripMm);
+    const pLocalPa = localImpactPressure(FJet, footprintMm2);
+    const cleaningR = cleaningRatio(pLocalPa, pThresholdPa);
+    const cleaningVerdictVal = cleaningVerdict(cleaningR);
+
     return {
       mu,
       v_hose: vHose,
@@ -209,6 +305,10 @@
       water_mass: waterMass,
       total_suspended_mass: hoseMass + waterMass,
       hydraulic_power_w: hydraulicPowerW,
+      footprint_mm2: footprintMm2,
+      P_local_pa: pLocalPa,
+      cleaning_R: cleaningR,
+      cleaning_verdict: cleaningVerdictVal,
     };
   }
 
@@ -279,10 +379,80 @@
     );
   }
 
+  // --- Cable drum sizing -------------------------------------------------
+  // N layers of n turns each; the turn in layer k (0-based) sits on
+  // centerline radius r + d/2 + k*d, so summing the N layers gives the
+  // closed form 2*pi*n*N*(r + N*d/2). The small epsilon keeps float noise
+  // (e.g. 0.3/0.01 = 29.999...) from dropping or adding a whole turn.
+  const DRUM_EPS = 1e-9;
+
+  function drumTurnsPerLayer(WM, dM) {
+    return Math.floor(WM / dM + DRUM_EPS);
+  }
+
+  function drumCapacity(rM, WM, dM, layers) {
+    const n = drumTurnsPerLayer(WM, dM);
+    return 2 * Math.PI * n * layers * (rM + (layers * dM) / 2);
+  }
+
+  /** Drum length fixed -> barrel radius that just fits L_m of cable. */
+  function drumSolveRadius(LM, dM, layers, WM) {
+    const n = drumTurnsPerLayer(WM, dM);
+    if (n < 1) return { r_m: NaN, turns_per_layer: n, feasible: false };
+    const rM = LM / (2 * Math.PI * n * layers) - (layers * dM) / 2;
+    return { r_m: rM, turns_per_layer: n, feasible: rM > 0 };
+  }
+
+  /** Barrel radius fixed -> shortest drum (whole turns) that fits L_m. */
+  function drumSolveLength(LM, dM, layers, rM) {
+    const perTurn = 2 * Math.PI * layers * (rM + (layers * dM) / 2);
+    const n = Math.max(1, Math.ceil(LM / perTurn - DRUM_EPS));
+    return { W_m: n * dM, turns_per_layer: n };
+  }
+
+  /**
+   * Single entry point for the drum tab, mirroring forwardSolve's role.
+   * `solve` names the unknown: "r" (W given), "W" (r given), or "L"
+   * (r and W given -> cable capacity).
+   */
+  function drumForward(inputs) {
+    const { d_m: dM, layers, solve } = inputs;
+    let { L_m: LM, r_m: rM, W_m: WM } = inputs;
+    let feasible = true;
+    if (solve === "r") {
+      const res = drumSolveRadius(LM, dM, layers, WM);
+      rM = res.r_m;
+      feasible = res.feasible;
+    } else if (solve === "W") {
+      WM = drumSolveLength(LM, dM, layers, rM).W_m;
+      feasible = rM > 0;
+    } else if (solve === "L") {
+      LM = drumCapacity(rM, WM, dM, layers);
+      feasible = rM > 0 && drumTurnsPerLayer(WM, dM) >= 1;
+    } else {
+      throw new Error(`drumForward: unknown solve target ${solve}`);
+    }
+    const n = drumTurnsPerLayer(WM, dM);
+    return {
+      L_m: LM,
+      r_m: rM,
+      W_m: WM,
+      outer_radius_m: rM + layers * dM,
+      turns_per_layer: n,
+      total_turns: n * layers,
+      capacity_m: feasible ? drumCapacity(rM, WM, dM, layers) : NaN,
+      feasible,
+    };
+  }
+
   const TarsaCalc = {
     RHO_WATER,
     G,
     BRACKETS,
+    K_ROUND_TURB,
+    K_FLAT_TURB,
+    L_STRIP_MM_DEFAULT,
+    P_THRESHOLD_PA_DEFAULT,
     muWater,
     hoseArea,
     hoseVelocity,
@@ -297,9 +467,18 @@
     hoseMassTotal,
     waterMassTotal,
     velocityBand,
+    footprintAreaMm2,
+    localImpactPressure,
+    cleaningRatio,
+    cleaningVerdict,
     forwardSolve,
     solveFor,
     solveFor2,
+    drumTurnsPerLayer,
+    drumCapacity,
+    drumSolveRadius,
+    drumSolveLength,
+    drumForward,
   };
 
   if (typeof module !== "undefined" && module.exports) {

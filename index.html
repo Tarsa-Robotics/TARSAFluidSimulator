@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>TARSA — Hose &amp; Pump Calculator</title>
+<title>TARSA — Engineering Calculators</title>
 <link rel="stylesheet" href="colors_and_type.css">
 <link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@24,300,0,-25">
@@ -14,7 +14,8 @@
   .topbar { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
   .topbar .material-symbols-sharp { font-size: 22px; color: var(--signal); }
 
-  .presets { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-5) 0; }
+  .preset-row { display: flex; align-items: flex-end; gap: var(--sp-4); flex-wrap: wrap; margin: var(--sp-5) 0; }
+  .preset-field { flex: 1; min-width: 260px; margin-bottom: 0; }
 
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-7); align-items: start; }
   @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
@@ -41,6 +42,8 @@
 
   .plain-field { margin-bottom: var(--sp-4); }
 
+  .range-field { width: 100%; accent-color: var(--signal); }
+
   .status-caption { font-size: var(--fs-caption); color: var(--fg-2); margin: var(--sp-4) 0; }
   .status-caption b { color: var(--ink); }
 
@@ -52,20 +55,55 @@
   .dp-table tr:last-child td { border-bottom: none; font-weight: 600; }
   .dp-table tr.infeasible td { color: var(--signal); }
 
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin-top: var(--sp-3); }
-  .stat-card { background: var(--surface); border: var(--bd); border-radius: var(--r-2); padding: var(--sp-4); }
-  .stat-card .stat-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--track-eyebrow);
-    text-transform: uppercase; color: var(--fg-2); }
-  .stat-card .stat-value { font-family: var(--font-mono); font-weight: 500; font-size: 22px;
-    font-variant-numeric: tabular-nums; margin-top: 4px; }
+  details.section-drop { margin: var(--sp-6) 0 0; }
+  details.section-drop > summary { cursor: pointer; }
+  details.section-drop > summary::marker { color: var(--fg-2); }
+  details.section-drop > table.dp-table { margin-top: var(--sp-3); }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+  .status-dot--green  { background: var(--clean); }
+  .status-dot--yellow { background: var(--soiled); }
+  .status-dot--red    { background: var(--signal); }
+
+  /* Tiny, near-invisible marker on an output — hover to see which inputs
+     feed it. Deliberately unstyled beyond a faint dot: this is a hint for
+     the curious, not a UI element competing for attention. */
+  .dep-dot {
+    display: inline-block; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--n-300); margin-left: 6px; vertical-align: middle;
+    cursor: help;
+  }
+  .dep-dot:hover { background: var(--fg-2); }
+
+  /* Custom hover tooltip — used instead of the native data-tooltip="" attribute,
+     which has inconsistent delay/behavior across browsers (notably
+     Safari). Attach data-tooltip="..." to any normal (non-form) element;
+     avoid attaching directly to <select>/<input> since generated content
+     on replaced elements isn't reliably supported — put it on the
+     associated <label> instead. */
+  [data-tooltip] { position: relative; cursor: help; }
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute; left: 0; bottom: 100%; margin-bottom: 6px;
+    background: var(--ink); color: var(--fg-on-ink);
+    font-family: var(--font-sans); font-size: 12px; font-weight: 400;
+    text-transform: none; letter-spacing: normal;
+    padding: 6px 10px; border-radius: var(--r-1);
+    white-space: normal; width: max-content; max-width: 260px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity var(--dur-fast) var(--ease);
+    z-index: 50;
+  }
+  [data-tooltip]:hover::after, [data-tooltip]:focus::after {
+    opacity: 1; visibility: visible;
+  }
 
   .error-box { color: var(--signal); font-size: var(--fs-sm); margin: var(--sp-2) 0; }
 
-  h4.section-head { margin: var(--sp-6) 0 0; }
-
   .formulas-toggle-row { display: flex; justify-content: center; margin: var(--sp-8) 0 var(--sp-5); }
 
-  #formulas-panel { border-top: 1px solid var(--n-200); padding-top: var(--sp-6); }
+  #formulas-panel, .formulas-panel { border-top: 1px solid var(--n-200); padding-top: var(--sp-6); }
   .legend-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: var(--sp-2) var(--sp-5); margin: var(--sp-4) 0 var(--sp-6);
@@ -76,6 +114,15 @@
     min-width: 2.4em; flex: 0 0 auto;
   }
   .legend-desc { color: var(--fg-2); }
+
+  .tabbar { display: flex; gap: var(--sp-5); border-bottom: 1px solid var(--n-200); margin: var(--sp-5) 0 0; }
+  .tab-btn {
+    background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    padding: var(--sp-2) 0; font: inherit; font-weight: 500; color: var(--fg-2); cursor: pointer;
+    transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--signal); }
 
   .formula-block { margin-bottom: var(--sp-6); }
   .formula-block .step-no {
@@ -97,7 +144,14 @@
   <span class="t-eyebrow">Facade robotics</span>
 </div>
 <h1 class="t-h1" style="margin:6px 0 0">TARSA</h1>
-<h2 class="t-h3" style="margin:2px 0 0;color:var(--fg-2);font-weight:500">Hose &amp; pump sizing calculator</h2>
+<h2 class="t-h3" style="margin:2px 0 0;color:var(--fg-2);font-weight:500">Engineering calculators</h2>
+
+<div class="tabbar" role="tablist">
+  <button class="tab-btn" role="tab" id="tabbtn-fluid" data-tab="fluid" aria-controls="tab-fluid">Hose &amp; pump</button>
+  <button class="tab-btn" role="tab" id="tabbtn-drum" data-tab="drum" aria-controls="tab-drum">Cable drum</button>
+</div>
+
+<section id="tab-fluid" role="tabpanel" aria-labelledby="tabbtn-fluid">
 <p class="t-sm" style="color:var(--fg-2);max-width:70ch;margin-top:var(--sp-3)">
   Locked fields are fixed values you set. Unlock 1 or 2 inputs, then lock the same number of
   outputs as your targets — those outputs become editable and solve the unlocked inputs to hit
@@ -106,90 +160,123 @@
 
 <div class="datum" style="margin:var(--sp-5) 0"></div>
 
-<div class="presets">
-  <button class="btn btn--primary" id="btn-p40-300">Load Comet P40 defaults — 300 psi (electric)</button>
-  <button class="btn btn--outline" id="btn-p40-290">Load Comet P40 defaults — 290 psi (pull-start)</button>
-  <span class="tag tag--ink">PD pump — Q constant</span>
+<div class="preset-row">
+  <div class="plain-field preset-field">
+    <label class="field-label" for="pump-preset-select">Pump preset</label>
+    <select class="field" id="pump-preset-select">
+      <option value="">— Load pump defaults —</option>
+    </select>
+  </div>
+  <span class="tag tag--ink" style="margin-bottom:11px" data-tooltip="Positive-displacement: Q stays fixed regardless of ΔP, up to the relief valve.">PD pump — Q constant</span>
 </div>
-<p class="t-caption" style="color:var(--fg-3);margin-top:-8px">
-  Positive-displacement: Q stays fixed regardless of ΔP, up to the relief valve.
-</p>
 
-<p class="t-caption" style="color:var(--fg-3);margin:var(--sp-5) 0 -6px">
-  Hose presets, from <code>TARSA_Hose_Selection_Research.md</code> &sect;&sect;2&ndash;4 &mdash;
-  sets ID, weight and burst pressure where the source publishes them, and a 100 m length
-  (assumed max reach). Hover a button for its source figures and caveats.
-</p>
-<div id="hose-presets"></div>
+<div class="plain-field preset-field" style="margin-top:var(--sp-5)">
+  <label class="field-label" for="hose-preset-select" id="hose-preset-label" data-tooltip="Hose presets from TARSA_Hose_Selection_Research.md §§2-4. Select one to see its sourcing notes here.">Hose preset</label>
+  <select class="field" id="hose-preset-select">
+    <option value="">— Load hose defaults —</option>
+  </select>
+</div>
 
 <div class="grid2" style="margin-top:var(--sp-6)">
   <div>
     <h3 class="t-h4">Inputs</h3>
 
-    <h4 class="section-head t-h4" style="margin-top:0">Hose specs</h4>
-    <div class="lockrow">
-      <button class="lock-btn" id="lock-id_m" data-var="id_m"><span class="material-symbols-sharp">lock</span></button>
-      <div class="field-col">
-        <label class="field-label" for="in-id_mm">Hose ID (mm)</label>
-        <input class="field" type="number" id="in-id_mm" step="0.1" min="3" max="50">
+    <details class="section-drop" open style="margin-top:0">
+      <summary class="t-h4">Hose specs</summary>
+      <div class="lockrow">
+        <button class="lock-btn" id="lock-id_m" data-var="id_m"><span class="material-symbols-sharp">lock</span></button>
+        <div class="field-col">
+          <label class="field-label" for="in-id_mm" data-tooltip="ID — hose inner diameter.">Hose ID (mm)</label>
+          <input class="field" type="number" id="in-id_mm" step="0.1" min="3" max="50">
+        </div>
       </div>
-    </div>
 
-    <div class="lockrow">
-      <button class="lock-btn" id="lock-L_m" data-var="L_m"><span class="material-symbols-sharp">lock</span></button>
-      <div class="field-col">
-        <label class="field-label" for="in-L_m">Hose length L (m)</label>
-        <input class="field" type="number" id="in-L_m" step="1" min="1" max="200">
+      <div class="lockrow">
+        <button class="lock-btn" id="lock-L_m" data-var="L_m"><span class="material-symbols-sharp">lock</span></button>
+        <div class="field-col">
+          <label class="field-label" for="in-L_m" data-tooltip="L — total hose length along the flow path.">Hose length L (m)</label>
+          <input class="field" type="number" id="in-L_m" step="1" min="1" max="200">
+        </div>
       </div>
-    </div>
 
-    <div class="lockrow">
-      <button class="lock-btn" id="lock-H_m" data-var="H_m"><span class="material-symbols-sharp">lock</span></button>
-      <div class="field-col">
-        <label class="field-label" for="in-H_m">Climb height H (m)</label>
-        <input class="field" type="number" id="in-H_m" step="1" min="0" max="150">
+      <div class="lockrow">
+        <button class="lock-btn" id="lock-H_m" data-var="H_m"><span class="material-symbols-sharp">lock</span></button>
+        <div class="field-col">
+          <label class="field-label" for="in-H_m" data-tooltip="H — vertical climb from reel to nozzle. Also the suspended length that carries hose + water weight.">Climb height H (m)</label>
+          <input class="field" type="number" id="in-H_m" step="1" min="0" max="150">
+        </div>
       </div>
-    </div>
 
-    <div class="plain-field">
-      <label class="field-label" for="in-roughness_mm">Roughness ε (mm) — assumed default, not sourced</label>
-      <input class="field" type="number" id="in-roughness_mm" step="0.001" min="0" max="1">
-    </div>
-    <div class="plain-field">
-      <label class="field-label" for="in-weight_per_m">Hose weight (kg/m) — datasheet value, not geometric</label>
-      <input class="field" type="number" id="in-weight_per_m" step="0.01" min="0" max="5">
-    </div>
-    <div class="plain-field">
-      <label class="field-label" for="in-p_burst_psi">Hose burst pressure (psi)</label>
-      <input class="field" type="number" id="in-p_burst_psi" step="50" min="0" max="10000">
-    </div>
-
-    <h4 class="section-head t-h4">Pump specs</h4>
-    <div class="lockrow">
-      <button class="lock-btn" id="lock-Q_m3s" data-var="Q_m3s"><span class="material-symbols-sharp">lock</span></button>
-      <div class="field-col">
-        <label class="field-label" for="in-Q_gpm">Flow Q (GPM)</label>
-        <input class="field" type="number" id="in-Q_gpm" step="0.1" min="0.1" max="200">
+      <div class="plain-field">
+        <label class="field-label" for="in-roughness_mm" data-tooltip="ε — hose internal surface roughness, used in the friction-factor calc. Assumed default, not sourced from a datasheet.">Roughness ε (mm)</label>
+        <input class="field" type="number" id="in-roughness_mm" step="0.001" min="0" max="1">
       </div>
-    </div>
-
-    <div class="lockrow">
-      <button class="lock-btn" id="lock-dP_rated_pa" data-var="dP_rated_pa"><span class="material-symbols-sharp">lock</span></button>
-      <div class="field-col">
-        <label class="field-label" for="in-dP_rated_psi">Pump rated ΔP (psi)</label>
-        <input class="field" type="number" id="in-dP_rated_psi" step="1" min="7" max="435">
+      <div class="plain-field">
+        <label class="field-label" for="in-T_c" data-tooltip="T — water temperature, used to look up viscosity for the friction calc.">Water temperature T (°C)</label>
+        <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
       </div>
-    </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-weight_per_m" data-tooltip="w — hose weight per meter, empty/dry. Datasheet value, not computed from hose geometry.">Hose weight (kg/m)</label>
+        <input class="field" type="number" id="in-weight_per_m" step="0.01" min="0" max="5">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-p_burst_psi" data-tooltip="P_burst — hose's rated burst pressure, used for the burst-margin safety check.">Hose burst pressure (psi)</label>
+        <input class="field" type="number" id="in-p_burst_psi" step="50" min="0" max="10000">
+      </div>
+    </details>
 
-    <h4 class="section-head t-h4">Other specs</h4>
-    <div class="plain-field">
-      <label class="field-label" for="in-Cv">Nozzle Cv</label>
-      <input class="field" type="number" id="in-Cv" step="0.01" min="0.5" max="1">
-    </div>
-    <div class="plain-field">
-      <label class="field-label" for="in-T_c">Water temperature (°C)</label>
-      <input class="field" type="number" id="in-T_c" step="1" min="0" max="40">
-    </div>
+    <details class="section-drop" open>
+      <summary class="t-h4">Pump specs</summary>
+      <div class="lockrow">
+        <button class="lock-btn" id="lock-Q_m3s" data-var="Q_m3s"><span class="material-symbols-sharp">lock</span></button>
+        <div class="field-col">
+          <label class="field-label" for="in-Q_gpm" data-tooltip="Q — volumetric flow rate. Fixed by a positive-displacement pump, independent of pressure.">Flow Q (GPM)</label>
+          <input class="field" type="number" id="in-Q_gpm" step="0.1" min="0.1" max="200">
+        </div>
+      </div>
+      <p class="t-caption" id="gpm-alert" style="color:var(--signal);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))" hidden></p>
+
+      <div class="lockrow">
+        <button class="lock-btn" id="lock-dP_rated_pa" data-var="dP_rated_pa"><span class="material-symbols-sharp">lock</span></button>
+        <div class="field-col">
+          <label class="field-label" for="in-dP_rated_psi" data-tooltip="ΔP_rated — the pump's rated output pressure at this flow.">Pump rated ΔP (psi)</label>
+          <input class="field" type="number" id="in-dP_rated_psi" step="1" min="7">
+        </div>
+      </div>
+    </details>
+
+    <details class="section-drop" open>
+      <summary class="t-h4">Nozzle &amp; spray</summary>
+      <div class="plain-field">
+        <label class="field-label" for="in-Cv" data-tooltip="Cv — nozzle velocity coefficient (0–1): how efficiently nozzle pressure converts to exit velocity.">Nozzle Cv</label>
+        <input class="field" type="number" id="in-Cv" step="0.01" min="0.5" max="1">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-nozzle_pattern" data-tooltip="Cone/round sprays outward in a widening circle; flat fan sprays sideways into a widening sheet instead. Determines how fast the footprint area (and diluted local pressure) grows with standoff.">Nozzle pattern</label>
+        <select class="field" id="in-nozzle_pattern">
+          <option value="cone">Cone / round (adjustable Twist nozzle)</option>
+          <option value="fan">Flat fan / curtain</option>
+        </select>
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-standoff_mm" data-tooltip="s — distance from the nozzle tip to the glass.">Standoff distance s (mm)</label>
+        <input class="field" type="number" id="in-standoff_mm" step="10" min="200" max="2000">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-spray_angle_deg" data-tooltip="θ — the nozzle's full spray angle. 0° = a straight pencil jet; wider angles spread the spray (and dilute its force) faster with distance.">Spray angle θ, full included (°)</label>
+        <input class="field" type="number" id="in-spray_angle_deg" step="1" min="0" max="60">
+      </div>
+      <div class="plain-field" id="field-L-strip">
+        <label class="field-label" for="in-L_strip_mm" data-tooltip="L_strip — fan pattern only: the strip's length, which stays roughly constant as standoff grows (only its width widens). Assumed default, not sourced.">Fan impact-strip length L_strip (mm)</label>
+        <input class="field" type="number" id="in-L_strip_mm" step="1" min="1" max="200">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="in-p_threshold_bar" data-tooltip="P_threshold — local impact pressure needed to actually clean the grime. 8 bar is Kim et al.'s proven floor; 150 bar is an unvalidated industry ceiling. Keep at 8 until a physical grime test is done.">
+          Cleaning threshold P<sub>threshold</sub> — <span id="p_threshold-readout"></span>
+        </label>
+        <input class="range-field" type="range" id="in-p_threshold_bar" step="1" min="8" max="150">
+      </div>
+    </details>
 
     <div class="datum" style="margin:var(--sp-5) 0"></div>
     <p class="status-caption" id="solve-status"></p>
@@ -202,7 +289,7 @@
     <div class="lockrow">
       <button class="lock-btn" id="lock-out-v_hose" data-metric="v_hose"><span class="material-symbols-sharp">lock_open</span></button>
       <div class="field-col">
-        <label class="field-label" for="out-v_hose">Hose velocity (m/s)</label>
+        <label class="field-label" for="out-v_hose">Hose velocity (m/s)<span class="dep-dot" data-tooltip="Depends on: ID, Q"></span></label>
         <input class="field" type="number" id="out-v_hose" step="0.01">
       </div>
     </div>
@@ -211,7 +298,7 @@
     <div class="lockrow">
       <button class="lock-btn" id="lock-out-F_jet" data-metric="F_jet"><span class="material-symbols-sharp">lock_open</span></button>
       <div class="field-col">
-        <label class="field-label" for="out-F_jet">F_jet operating (N)</label>
+        <label class="field-label" for="out-F_jet">F_jet operating (N)<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, Cv, ε, T"></span></label>
         <input class="field" type="number" id="out-F_jet" step="0.1">
       </div>
     </div>
@@ -219,7 +306,7 @@
     <div class="lockrow">
       <button class="lock-btn" id="lock-out-dP_effective" data-metric="dP_effective"><span class="material-symbols-sharp">lock_open</span></button>
       <div class="field-col">
-        <label class="field-label" for="out-dP_effective">ΔP effective (psi)</label>
+        <label class="field-label" for="out-dP_effective">ΔP effective (psi)<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, ε, T"></span></label>
         <input class="field" type="number" id="out-dP_effective" step="0.1">
       </div>
     </div>
@@ -229,28 +316,42 @@
     <div class="lockrow">
       <button class="lock-btn" id="lock-out-burst_margin" data-metric="burst_margin"><span class="material-symbols-sharp">lock_open</span></button>
       <div class="field-col">
-        <label class="field-label" for="out-burst_margin">Burst margin (×)</label>
+        <label class="field-label" for="out-burst_margin">Burst margin (×)<span class="dep-dot" data-tooltip="Depends on: P_burst, ΔP_rated"></span></label>
         <input class="field" type="number" id="out-burst_margin" step="0.01">
       </div>
     </div>
     <p class="t-caption" id="burst-tag" style="color:var(--signal);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))" hidden></p>
 
-    <h4 class="section-head t-h4">ΔP breakdown</h4>
-    <table class="dp-table">
-      <tr><td>ΔP rated</td><td id="dp-rated"></td></tr>
-      <tr><td>− ΔP friction</td><td id="dp-friction"></td></tr>
-      <tr><td>− ΔP elevation</td><td id="dp-elevation"></td></tr>
-      <tr id="dp-effective-row"><td>= ΔP effective</td><td id="dp-effective"></td></tr>
-    </table>
+    <details class="section-drop" open>
+      <summary class="t-h4">ΔP breakdown</summary>
+      <table class="dp-table">
+        <tr><td>ΔP rated<span class="dep-dot" data-tooltip="Depends on: ΔP_rated"></span></td><td id="dp-rated"></td></tr>
+        <tr><td>− ΔP friction<span class="dep-dot" data-tooltip="Depends on: ID, L, Q, ε, T"></span></td><td id="dp-friction"></td></tr>
+        <tr><td>− ΔP elevation<span class="dep-dot" data-tooltip="Depends on: H"></span></td><td id="dp-elevation"></td></tr>
+        <tr id="dp-effective-row"><td>= ΔP effective<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, ε, T"></span></td><td id="dp-effective"></td></tr>
+      </table>
+    </details>
 
-    <h4 class="section-head t-h4">Mass &amp; structural reference</h4>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">F_jet (ΔP_rated × SF=2)</div><div class="stat-value" id="stat-fjet-structural"></div></div>
-      <div class="stat-card"><div class="stat-label">Hose mass (empty, suspended)</div><div class="stat-value" id="stat-hose-mass"></div></div>
-      <div class="stat-card"><div class="stat-label">Water in suspended hose</div><div class="stat-value" id="stat-water-mass"></div></div>
-      <div class="stat-card"><div class="stat-label">Total suspended mass</div><div class="stat-value" id="stat-total-mass"></div></div>
-      <div class="stat-card"><div class="stat-label">Hydraulic power (Q &times; &Delta;P_rated)</div><div class="stat-value" id="stat-hydraulic-power"></div></div>
-    </div>
+    <details class="section-drop" open>
+      <summary class="t-h4">Mass &amp; structural reference</summary>
+      <table class="dp-table">
+        <tr><td>F_jet (ΔP_rated &times; SF=2)<span class="dep-dot" data-tooltip="Depends on: ΔP_rated, Q, Cv"></span></td><td id="stat-fjet-structural"></td></tr>
+        <tr><td>Hose mass (empty, suspended)<span class="dep-dot" data-tooltip="Depends on: w, H"></span></td><td id="stat-hose-mass"></td></tr>
+        <tr><td>Water in suspended hose<span class="dep-dot" data-tooltip="Depends on: ID, H"></span></td><td id="stat-water-mass"></td></tr>
+        <tr><td>Total suspended mass<span class="dep-dot" data-tooltip="Depends on: w, ID, H"></span></td><td id="stat-total-mass"></td></tr>
+        <tr><td>Hydraulic power (Q &times; &Delta;P_rated)<span class="dep-dot" data-tooltip="Depends on: Q, ΔP_rated"></span></td><td id="stat-hydraulic-power"></td></tr>
+      </table>
+    </details>
+
+    <details class="section-drop" open>
+      <summary class="t-h4">Cleaning verdict</summary>
+      <table class="dp-table">
+        <tr><td>Status<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, Cv, ε, T, s, θ, nozzle pattern, L_strip, P_threshold"></span></td><td><span class="status-dot" id="cleaning-dot"></span><span id="cleaning-caption"></span></td></tr>
+        <tr><td>Footprint area A_footprint<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, Cv, ε, T, s, θ, nozzle pattern, L_strip"></span></td><td id="stat-footprint"></td></tr>
+        <tr><td>Local impact pressure P_local<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, Cv, ε, T, s, θ, nozzle pattern, L_strip"></span></td><td id="stat-p-local"></td></tr>
+        <tr><td>Cleaning ratio R<span class="dep-dot" data-tooltip="Depends on: ID, L, H, Q, ΔP_rated, Cv, ε, T, s, θ, nozzle pattern, L_strip, P_threshold"></span></td><td id="stat-cleaning-r"></td></tr>
+      </table>
+    </details>
   </div>
 </div>
 
@@ -268,8 +369,9 @@
     marked where that happens.
   </p>
 
-  <h4 class="section-head t-h4">Symbol legend</h4>
-  <div class="legend-grid">
+  <details class="section-drop" open style="margin-top:0">
+    <summary class="t-h4">Symbol legend</summary>
+    <div class="legend-grid">
     <div class="legend-row"><span class="legend-sym">ID</span><span class="legend-desc">Hose inner diameter (m)</span></div>
     <div class="legend-row"><span class="legend-sym">L</span><span class="legend-desc">Hose length (m)</span></div>
     <div class="legend-row"><span class="legend-sym">H</span><span class="legend-desc">Vertical climb height (m)</span></div>
@@ -289,7 +391,18 @@
     <div class="legend-row"><span class="legend-sym">P<sub>burst</sub></span><span class="legend-desc">Hose burst pressure rating (Pa)</span></div>
     <div class="legend-row"><span class="legend-sym">w</span><span class="legend-desc">Hose weight per length, datasheet value (kg/m)</span></div>
     <div class="legend-row"><span class="legend-sym">P<sub>hyd</sub></span><span class="legend-desc">Hydraulic power at rated pressure and flow (W)</span></div>
-  </div>
+    <div class="legend-row"><span class="legend-sym">s</span><span class="legend-desc">Nozzle standoff distance from glass (mm)</span></div>
+    <div class="legend-row"><span class="legend-sym">θ</span><span class="legend-desc">Spray angle, full included (&deg;)</span></div>
+    <div class="legend-row"><span class="legend-sym">L<sub>strip</sub></span><span class="legend-desc">Fan impact-strip length at exit, assumed constant (mm)</span></div>
+    <div class="legend-row"><span class="legend-sym">A<sub>nozzle</sub></span><span class="legend-desc">Nozzle exit area, from continuity Q/v<sub>exit</sub> (mm&sup2;)</span></div>
+    <div class="legend-row"><span class="legend-sym">r<sub>nozzle</sub></span><span class="legend-desc">Equivalent round-nozzle exit radius, &radic;(A<sub>nozzle</sub>/π) (mm)</span></div>
+    <div class="legend-row"><span class="legend-sym">b<sub>nozzle</sub></span><span class="legend-desc">Fan slot exit width, A<sub>nozzle</sub>/L<sub>strip</sub> (mm)</span></div>
+    <div class="legend-row"><span class="legend-sym">A<sub>footprint</sub></span><span class="legend-desc">Jet footprint area at the glass (mm&sup2;)</span></div>
+    <div class="legend-row"><span class="legend-sym">P<sub>local</sub></span><span class="legend-desc">Local impact pressure at the glass (bar)</span></div>
+    <div class="legend-row"><span class="legend-sym">P<sub>threshold</sub></span><span class="legend-desc">Cleaning threshold pressure, user-adjustable (bar)</span></div>
+    <div class="legend-row"><span class="legend-sym">R</span><span class="legend-desc">Cleaning ratio, P<sub>local</sub> / P<sub>threshold</sub></span></div>
+    </div>
+  </details>
 
   <div class="formula-block">
     <div class="step-no">01</div>
@@ -438,6 +551,186 @@
       locked is genuinely infeasible, not a solver bug.
     </p>
   </div>
+
+  <div class="formula-block">
+    <div class="step-no">18</div>
+    <h5>Stage 7 &mdash; local impact pressure at glass</h5>
+    <div class="formula-eq">P<sub>local</sub> = F<sub>jet</sub> / A<sub>footprint</sub>(s, θ)</div>
+    <p class="formula-note">
+      Standoff and spray angle both do the same job &mdash; spreading the jet's momentum over a
+      bigger footprint before it hits the glass &mdash; via two independent, quantifiable
+      mechanisms. Whichever predicts the larger footprint (smaller pressure) wins:
+    </p>
+    <div class="formula-eq">
+      A<sub>footprint,geometric</sub> = π&middot;(r<sub>nozzle</sub> + s&middot;tan(θ/2))&sup2; &nbsp;[cone/round]<br>
+      A<sub>footprint,geometric</sub> = (b<sub>nozzle</sub> + 2&middot;s&middot;tan(θ/2))&middot;L<sub>strip</sub> &nbsp;[flat fan]
+    </div>
+    <p class="formula-note">
+      θ is the nozzle's full included spray angle. The cone/fan is <i>not</i> born from a
+      mathematical point &mdash; a real nozzle exit has finite size, r<sub>nozzle</sub> (cone) or
+      b<sub>nozzle</sub> (fan slot width), taken from continuity (A<sub>nozzle</sub> = Q/v<sub>exit</sub>,
+      real geometry, not a tunable). A point-origin model breaks down at small standoff: as
+      s &rarr; 0 it predicts a footprint <i>smaller</i> than the nozzle's own exit
+      (f<sub>geometric</sub> = A<sub>nozzle</sub>/A<sub>footprint</sub> &gt; 1), which is
+      physically impossible &mdash; the footprint can never shrink below the exit producing it,
+      no matter how close you get. At large standoff the nozzle-size term is negligible and the
+      formulas reduce to the point-origin shape: a cone footprint's <i>area</i> grows as s&sup2;,
+      so P<sub>local</sub> decays as 1/s&sup2;; a fan footprint's <i>width</i> grows as s but the
+      impact-strip length L<sub>strip</sub> stays roughly constant, so its area grows only
+      ~linearly and P<sub>local</sub> decays as 1/s &mdash; the real physical reason a fan
+      (curtain) nozzle holds pressure over distance better than a cone, not just a coincidence
+      of motion path.
+    </p>
+    <div class="formula-eq">
+      A<sub>footprint,turbulent</sub> = π&middot;s&sup2; / (4&middot;6.2&sup2;) &nbsp;[cone/round]<br>
+      A<sub>footprint,turbulent</sub> = (s / 5.76)&middot;L<sub>strip</sub> &nbsp;[flat fan]
+    </div>
+    <p class="formula-note">
+      The geometric formula alone predicts a zero-area (infinite-pressure) footprint at θ = 0,
+      which is unphysical &mdash; a "pencil" jet still spreads via turbulent entrainment even
+      with no designed spray angle. This second formula is the equivalent footprint from
+      classical free-jet centerline decay (Rajaratnam): round jets u<sub>c</sub>/u<sub>0</sub> =
+      6.2&middot;D/s, flat jets u<sub>c</sub>/u<sub>0</sub> = 2.4&middot;√(b/s). Since momentum
+      flux (ρ&middot;u&sup2;&middot;A) is conserved along a free jet, the equivalent area is
+      A<sub>0</sub> / (u<sub>c</sub>/u<sub>0</sub>)&sup2; &mdash; and because A<sub>0</sub> is
+      defined by the orifice itself (π&middot;D&sup2;/4 for round, b&middot;L<sub>strip</sub>
+      for fan), the orifice size cancels out algebraically, leaving a floor that depends only on
+      standoff. This floor is what governs near θ = 0; the geometric term takes over and
+      dominates once θ exceeds roughly 15&deg; at typical operating standoffs (200mm+), matching
+      the "DS Twist" nozzle's usable range.
+    </p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">19</div>
+    <h5>Stage 8 &mdash; cleaning verdict</h5>
+    <div class="formula-eq">R = P<sub>local</sub> / P<sub>threshold</sub></div>
+    <p class="formula-note">
+      R &ge; 2 &rarr; 🟢 Green (good clean). 1 &le; R &lt; 2 &rarr; 🟡 Yellow (marginal).
+      R &lt; 1 &rarr; 🔴 Red (fails &mdash; no amount of dwell time fixes it).
+      P<sub>threshold</sub> is a user-adjustable slider from 8 bar (Kim et al.'s proven floor) to
+      150 bar (industry "glass ceiling," unvalidated for TARSA's actual grime); it defaults to
+      8 bar until a physical grime test is done.
+    </p>
+  </div>
+</section>
+</section>
+
+<section id="tab-drum" role="tabpanel" aria-labelledby="tabbtn-drum" hidden>
+<p class="t-sm" style="color:var(--fg-2);max-width:70ch;margin-top:var(--sp-3)">
+  Sizes a drum to hold a cable. Lock drum radius or drum length as the target and the other is
+  solved. Unlock cable length to lock both instead and get how much cable the drum holds.
+</p>
+
+<div class="datum" style="margin:var(--sp-5) 0"></div>
+
+<div class="grid2" style="margin-top:var(--sp-6)">
+  <div>
+    <h3 class="t-h4">Inputs</h3>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="drum-lock-L"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="drum-in-L_m" data-tooltip="L — total cable length to wind onto the drum.">Cable length L (m)</label>
+        <input class="field" type="number" id="drum-in-L_m" step="1" min="0.1">
+      </div>
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="drum-in-d_mm" data-tooltip="d — cable outer diameter. Each turn takes d of drum length; each layer adds d of radius.">Cable diameter d (mm)</label>
+      <input class="field" type="number" id="drum-in-d_mm" step="0.1" min="0.1">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="drum-in-layers" data-tooltip="N — number of cable layers wound on top of each other. 1 = a single layer on the barrel.">Layers N</label>
+      <input class="field" type="number" id="drum-in-layers" step="1" min="1">
+    </div>
+
+    <div class="datum" style="margin:var(--sp-5) 0"></div>
+    <p class="status-caption" id="drum-status"></p>
+    <p class="error-box" id="drum-error" hidden></p>
+  </div>
+
+  <div>
+    <h3 class="t-h4">Drum</h3>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="drum-lock-out-r"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="drum-out-r_mm" data-tooltip="r — radius of the bare drum barrel the first layer wraps on.">Drum radius r (mm)<span class="dep-dot" data-tooltip="Depends on: L, d, N, W"></span></label>
+        <input class="field" type="number" id="drum-out-r_mm" step="1">
+      </div>
+    </div>
+
+    <div class="lockrow">
+      <button class="lock-btn" id="drum-lock-out-W"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="drum-out-W_mm" data-tooltip="W — usable drum length between the flanges. Rounded up to a whole number of turns.">Drum length W (mm)<span class="dep-dot" data-tooltip="Depends on: L, d, N, r"></span></label>
+        <input class="field" type="number" id="drum-out-W_mm" step="1">
+      </div>
+    </div>
+
+    <details class="section-drop" open>
+      <summary class="t-h4">Winding reference</summary>
+      <table class="dp-table">
+        <tr><td>Outer radius with cable (min. flange)<span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer"></td></tr>
+        <tr><td>Turns per layer<span class="dep-dot" data-tooltip="Depends on: W, d"></span></td><td id="drum-stat-turns"></td></tr>
+        <tr><td>Total turns<span class="dep-dot" data-tooltip="Depends on: W, d, N"></span></td><td id="drum-stat-total-turns"></td></tr>
+        <tr><td>Drum capacity<span class="dep-dot" data-tooltip="Depends on: r, W, d, N"></span></td><td id="drum-stat-capacity"></td></tr>
+      </table>
+    </details>
+  </div>
+</div>
+
+<div class="formulas-toggle-row">
+  <button class="btn btn--outline" id="drum-btn-show-formulas" aria-expanded="false" aria-controls="drum-formulas-panel">
+    Show formulas
+  </button>
+</div>
+
+<section id="drum-formulas-panel" class="formulas-panel" hidden>
+  <h3 class="t-h3">Formulas used</h3>
+  <div class="legend-grid">
+    <div class="legend-row"><span class="legend-sym">L</span><span class="legend-desc">Cable length (m)</span></div>
+    <div class="legend-row"><span class="legend-sym">d</span><span class="legend-desc">Cable diameter (m)</span></div>
+    <div class="legend-row"><span class="legend-sym">N</span><span class="legend-desc">Number of layers</span></div>
+    <div class="legend-row"><span class="legend-sym">r</span><span class="legend-desc">Drum barrel radius (m)</span></div>
+    <div class="legend-row"><span class="legend-sym">W</span><span class="legend-desc">Drum length between flanges (m)</span></div>
+    <div class="legend-row"><span class="legend-sym">n</span><span class="legend-desc">Turns per layer</span></div>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">01</div>
+    <h5>Turns per layer</h5>
+    <div class="formula-eq">n = floor(W / d)</div>
+    <p class="formula-note">Only whole turns count; leftover length at the flange holds no cable.</p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">02</div>
+    <h5>Drum capacity</h5>
+    <div class="formula-eq">C = Σ<sub>k=0…N−1</sub> n &middot; 2π(r + d/2 + k&middot;d) = 2π &middot; n &middot; N &middot; (r + N&middot;d/2)</div>
+    <p class="formula-note">Each turn is measured along the cable's centerline. Layer k sits k&middot;d further out than the first.</p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">03</div>
+    <h5>Length locked &rarr; solve radius</h5>
+    <div class="formula-eq">r = L / (2π &middot; n &middot; N) &minus; N&middot;d/2</div>
+    <p class="formula-note">Infeasible if r &le; 0: the drum is too long, or has too many layers, for this much cable.</p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">04</div>
+    <h5>Radius locked &rarr; solve length</h5>
+    <div class="formula-eq">n = ceil(L / (2π &middot; N &middot; (r + N&middot;d/2))), &nbsp; W = n &middot; d</div>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">05</div>
+    <h5>Both locked &rarr; solve cable length</h5>
+    <div class="formula-eq">L = C</div>
+    <p class="formula-note">Outer radius r + N&middot;d is the smallest flange radius that clears the top layer.</p>
+  </div>
+</section>
 </section>
 
 <script src="calc.js"></script>
@@ -455,6 +748,7 @@ const gpmToM3s = (x) => (x * GAL_TO_M3) / 60.0;
 const m3sToGpm = (x) => (x * 60.0) / GAL_TO_M3;
 const mmToM = (x) => x / 1000.0;
 const mToMm = (x) => x * 1000.0;
+const barToPa = (x) => x * PA_TO_BAR;
 
 const INPUT_VARS = ["id_m", "L_m", "H_m", "Q_m3s", "dP_rated_pa"];
 const METRIC_KEYS = ["v_hose", "F_jet", "dP_effective", "burst_margin"];
@@ -478,11 +772,20 @@ const METRIC_META = {
 const BAND_TAG = { ideal: "clean", acceptable: "soiled", erosion_risk: "fault" };
 const BAND_LABEL = { ideal: "Ideal", acceptable: "Acceptable", erosion_risk: "Erosion risk" };
 
+const CLEANING_CAPTION = {
+  green: "Good clean",
+  yellow: "Marginal",
+  red: "Fails — no amount of dwell time fixes it",
+};
+
 const MAX_SIMULTANEOUS_TARGETS = 2;
 
 const state = {
   id_mm: 15.9, L_m: 30.0, H_m: 20.0, Q_gpm: 11.5, dP_rated_psi: 300.0,
   roughness_mm: 0.005, T_c: 20.0, Cv: 1.0, weight_per_m: 0.22, p_burst_psi: 4000.0,
+  nozzle_pattern: "cone", standoff_mm: 200.0, spray_angle_deg: 40.0,
+  L_strip_mm: calc.L_STRIP_MM_DEFAULT,
+  p_threshold_bar: paToBar(calc.P_THRESHOLD_PA_DEFAULT),
   locks: { id_m: true, L_m: true, H_m: true, Q_m3s: true, dP_rated_pa: true },
   activeTargets: [], // 0-2 metric keys, up to MAX_SIMULTANEOUS_TARGETS
   solveError: null,
@@ -501,6 +804,11 @@ function getCalcInputs() {
     T_celsius: state.T_c,
     weight_per_m: state.weight_per_m,
     p_burst_pa: psiToPa(state.p_burst_psi),
+    nozzle_pattern: state.nozzle_pattern,
+    standoff_mm: state.standoff_mm,
+    spray_angle_deg: state.spray_angle_deg,
+    L_strip_mm: state.L_strip_mm,
+    p_threshold_pa: barToPa(state.p_threshold_bar),
   };
 }
 
@@ -548,10 +856,29 @@ function toggleOutputLock(metricKey) {
   render();
 }
 
-function loadP40Defaults(psi) {
-  state.Q_gpm = 11.5;
-  state.dP_rated_psi = psi;
+// Pump presets — a flat, data-driven list feeding a single <select> rather
+// than one hardcoded button per pump. Adding a pump is a one-line entry
+// here, not new HTML + a new event listener; the dropdown also scales to
+// many pumps without turning into a wall of buttons.
+const PUMP_PRESETS = [
+  { name: "Comet P40 — 300 psi (electric)", Q_gpm: 11.5, dP_rated_psi: 300.0 },
+  { name: "Comet P40 — 290 psi (pull-start)", Q_gpm: 11.5, dP_rated_psi: 290.0 },
+];
+
+function loadPumpPreset(item) {
+  state.Q_gpm = item.Q_gpm;
+  state.dP_rated_psi = item.dP_rated_psi;
   render();
+}
+
+function renderPumpPresetSelect() {
+  const select = document.getElementById("pump-preset-select");
+  for (let i = 0; i < PUMP_PRESETS.length; i++) {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = PUMP_PRESETS[i].name;
+    select.appendChild(option);
+  }
 }
 
 // Named hose products pulled from TARSA_Hose_Selection_Research.md §§2-4.
@@ -559,7 +886,7 @@ function loadP40Defaults(psi) {
 // leaves that field alone rather than inventing a number. Where a field is
 // derived rather than a direct quote (ID^2-scaled weight, dry weight
 // back-calculated from a hose+water-fill figure, a range's midpoint), the
-// `note` says so; it's shown as the button's tooltip.
+// `note` says so; it's shown below the dropdown once selected.
 const HOSE_PRESET_LENGTH_M = 100; // assumed max reach, all products
 
 const HOSE_CATEGORIES = [
@@ -656,27 +983,24 @@ function loadHoseProduct(item) {
   render();
 }
 
-function renderHosePresets() {
-  const container = document.getElementById("hose-presets");
-  for (const category of HOSE_CATEGORIES) {
-    const heading = document.createElement("p");
-    heading.className = "t-caption";
-    heading.style.cssText = "color:var(--fg-2);font-weight:600;margin:var(--sp-4) 0 4px";
-    heading.textContent = category.title;
-    container.appendChild(heading);
+// Flattened in select-option order so the <select>'s value (a plain index)
+// can look the item back up — built once by renderHosePresetSelect().
+const HOSE_PRESET_FLAT = [];
 
-    const row = document.createElement("div");
-    row.className = "presets";
-    row.style.marginTop = "0";
+function renderHosePresetSelect() {
+  const select = document.getElementById("hose-preset-select");
+  for (const category of HOSE_CATEGORIES) {
+    const group = document.createElement("optgroup");
+    group.label = category.title;
     for (const item of category.items) {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--outline";
-      btn.textContent = `${item.name} — ${item.idLabel} (${item.id_mm} mm)`;
-      btn.title = item.note;
-      btn.addEventListener("click", () => loadHoseProduct(item));
-      row.appendChild(btn);
+      const option = document.createElement("option");
+      option.value = String(HOSE_PRESET_FLAT.length);
+      option.textContent = `${item.name} — ${item.idLabel} (${item.id_mm} mm)`;
+      option.title = item.note; // shown on hover while the dropdown is open, in browsers that support it
+      group.appendChild(option);
+      HOSE_PRESET_FLAT.push(item);
     }
-    container.appendChild(row);
+    select.appendChild(group);
   }
 }
 
@@ -808,6 +1132,17 @@ function render() {
   document.getElementById("in-Cv").value = state.Cv;
   document.getElementById("in-weight_per_m").value = state.weight_per_m;
   document.getElementById("in-p_burst_psi").value = state.p_burst_psi;
+  document.getElementById("in-nozzle_pattern").value = state.nozzle_pattern;
+  document.getElementById("in-standoff_mm").value = state.standoff_mm;
+  document.getElementById("in-spray_angle_deg").value = state.spray_angle_deg;
+  document.getElementById("in-L_strip_mm").value = state.L_strip_mm;
+  document.getElementById("field-L-strip").hidden = state.nozzle_pattern !== "fan";
+  document.getElementById("in-p_threshold_bar").value = state.p_threshold_bar;
+  document.getElementById("p_threshold-readout").textContent = `${state.p_threshold_bar.toFixed(0)} bar`;
+
+  const gpmAlert = document.getElementById("gpm-alert");
+  gpmAlert.hidden = state.Q_gpm <= 12;
+  gpmAlert.textContent = "Above 12 GPM — high flow";
 
   document.getElementById("output-head").textContent = solving ? "Targets" : "Live output";
 
@@ -872,6 +1207,16 @@ function render() {
   document.getElementById("stat-total-mass").textContent = `${result.total_suspended_mass.toFixed(2)} kg`;
   document.getElementById("stat-hydraulic-power").textContent =
     `${(result.hydraulic_power_w / WATTS_PER_HP).toFixed(2)} HP (${result.hydraulic_power_w.toFixed(0)} W)`;
+
+  // --- cleaning verdict ---
+  document.getElementById("stat-footprint").textContent =
+    result.footprint_mm2 >= 100
+      ? `${(result.footprint_mm2 / 100).toFixed(1)} cm²`
+      : `${result.footprint_mm2.toFixed(1)} mm²`;
+  document.getElementById("stat-p-local").textContent = `${paToBar(result.P_local_pa).toFixed(2)} bar`;
+  document.getElementById("stat-cleaning-r").textContent = `${result.cleaning_R.toFixed(2)}×`;
+  document.getElementById("cleaning-dot").className = `status-dot status-dot--${result.cleaning_verdict}`;
+  document.getElementById("cleaning-caption").textContent = CLEANING_CAPTION[result.cleaning_verdict];
 }
 
 // --- wire up events ---
@@ -890,6 +1235,14 @@ bindPlainInput("in-T_c", "T_c");
 bindPlainInput("in-Cv", "Cv");
 bindPlainInput("in-weight_per_m", "weight_per_m");
 bindPlainInput("in-p_burst_psi", "p_burst_psi");
+document.getElementById("in-nozzle_pattern").addEventListener("change", (e) => {
+  state.nozzle_pattern = e.target.value;
+  render();
+});
+bindPlainInput("in-standoff_mm", "standoff_mm");
+bindPlainInput("in-spray_angle_deg", "spray_angle_deg");
+bindPlainInput("in-L_strip_mm", "L_strip_mm");
+bindPlainInput("in-p_threshold_bar", "p_threshold_bar");
 
 // Hose length L must always be >= climb height H (the hose can't climb
 // higher than it is long). Raising H immediately bumps L up to match, since
@@ -931,10 +1284,32 @@ for (const metricKey of METRIC_KEYS) {
   });
 }
 
-document.getElementById("btn-p40-300").addEventListener("click", () => loadP40Defaults(300.0));
-document.getElementById("btn-p40-290").addEventListener("click", () => loadP40Defaults(290.0));
+renderPumpPresetSelect();
+document.getElementById("pump-preset-select").addEventListener("change", (e) => {
+  if (e.target.value === "") return;
+  loadPumpPreset(PUMP_PRESETS[Number(e.target.value)]);
+});
 
-renderHosePresets();
+// Selection stays showing the loaded preset (not reset to the placeholder)
+// so it doubles as confirmation of what was last applied; the sourcing
+// note lives in the associated label's hover tooltip rather than a
+// caption, per the "explanations on hover, not on the page" pattern used
+// throughout. (Tooltip lives on the <label>, not the <select> itself —
+// generated content/::after isn't reliably supported on replaced form
+// elements like <select>.)
+renderHosePresetSelect();
+const hosePresetSelectEl = document.getElementById("hose-preset-select");
+const hosePresetLabelEl = document.getElementById("hose-preset-label");
+const hosePresetDefaultTooltip = hosePresetLabelEl.dataset.tooltip;
+hosePresetSelectEl.addEventListener("change", (e) => {
+  if (e.target.value === "") {
+    hosePresetLabelEl.dataset.tooltip = hosePresetDefaultTooltip;
+    return;
+  }
+  const item = HOSE_PRESET_FLAT[Number(e.target.value)];
+  loadHoseProduct(item);
+  hosePresetLabelEl.dataset.tooltip = item.note;
+});
 
 const formulasBtn = document.getElementById("btn-show-formulas");
 const formulasPanel = document.getElementById("formulas-panel");
@@ -947,6 +1322,173 @@ formulasBtn.addEventListener("click", () => {
 });
 
 render();
+</script>
+
+<script>
+// --- Tabs ---
+// The active tab lives in location.hash (#drum) so a shared link opens it.
+const TABS = ["fluid", "drum"];
+function showTab(name) {
+  if (!TABS.includes(name)) name = "fluid";
+  for (const t of TABS) {
+    document.getElementById(`tab-${t}`).hidden = t !== name;
+    document.getElementById(`tabbtn-${t}`).setAttribute("aria-selected", String(t === name));
+  }
+}
+for (const t of TABS) {
+  document.getElementById(`tabbtn-${t}`).addEventListener("click", () => {
+    history.replaceState(null, "", t === "fluid" ? location.pathname + location.search : `#${t}`);
+    showTab(t);
+  });
+}
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1));
+
+// --- Cable drum tab ---
+// Same lock semantics as the fluid tab, specialised to this problem's one
+// open degree of freedom: with L locked, exactly one of r / W is the target
+// and the other is solved; unlocking L locks both and solves L instead.
+const DRUM_OUTPUTS = {
+  r: { elId: "drum-out-r_mm", stateKey: "r_mm", label: "Drum radius r (mm)" },
+  W: { elId: "drum-out-W_mm", stateKey: "W_mm", label: "Drum length W (mm)" },
+};
+
+const drumState = {
+  L_m: 100.0, d_mm: 10.0, layers: 1,
+  r_mm: 0, W_mm: 500.0,
+  L_locked: true,
+  target: "W", // most recently locked output; the only target while L is locked
+  error: null,
+};
+
+function drumSolveKey() {
+  if (!drumState.L_locked) return "L";
+  return drumState.target === "W" ? "r" : "W";
+}
+
+function drumCompute() {
+  const r = calc.drumForward({
+    solve: drumSolveKey(),
+    L_m: drumState.L_m,
+    d_m: mmToM(drumState.d_mm),
+    layers: drumState.layers,
+    r_m: mmToM(drumState.r_mm),
+    W_m: mmToM(drumState.W_mm),
+  });
+  // Write the solved value back so the next swap starts from it.
+  if (r.feasible) drumState.L_m = r.L_m;
+  if (Number.isFinite(r.r_m)) drumState.r_mm = mToMm(r.r_m);
+  drumState.W_mm = mToMm(r.W_m);
+  return r;
+}
+
+function renderDrum() {
+  const res = drumCompute();
+  const solveKey = drumSolveKey();
+
+  const lBtn = document.getElementById("drum-lock-L");
+  lBtn.classList.toggle("active", drumState.L_locked);
+  lBtn.querySelector(".material-symbols-sharp").textContent = drumState.L_locked ? "lock" : "lock_open";
+  lBtn.title = drumState.L_locked
+    ? "Locked — fixed value. Click to unlock and solve how much cable the drum holds."
+    : "Unlocked — being solved for. Click to lock it again.";
+  const lInput = document.getElementById("drum-in-L_m");
+  lInput.disabled = !drumState.L_locked;
+  lInput.value = drumState.L_locked ? drumState.L_m : drumState.L_m.toFixed(2);
+  document.getElementById("drum-in-d_mm").value = drumState.d_mm;
+  document.getElementById("drum-in-layers").value = drumState.layers;
+
+  for (const [key, meta] of Object.entries(DRUM_OUTPUTS)) {
+    const isTarget = key !== solveKey;
+    const btn = document.getElementById(`drum-lock-out-${key}`);
+    btn.classList.toggle("active", isTarget);
+    btn.querySelector(".material-symbols-sharp").textContent = isTarget ? "lock" : "lock_open";
+    btn.disabled = !drumState.L_locked;
+    btn.title = !drumState.L_locked
+      ? "Both outputs are targets while cable length is unlocked."
+      : isTarget
+      ? "Active target — editable, drives the solve."
+      : "Click to make this the target instead.";
+    const input = document.getElementById(meta.elId);
+    input.disabled = !isTarget;
+    const v = drumState[meta.stateKey];
+    // Leave an active target's typed value alone; only format solved values.
+    if (!isTarget) input.value = Number.isFinite(v) && res.feasible ? v.toFixed(1) : "";
+    else if (document.activeElement !== input) input.value = +v.toFixed(3);
+  }
+
+  const statusEl = document.getElementById("drum-status");
+  statusEl.innerHTML = drumState.L_locked
+    ? `Solving for <b>${DRUM_OUTPUTS[solveKey].label}</b> — edit the locked target to update it.`
+    : "Solving for <b>Cable length L (m)</b> — edit drum radius or length to update it.";
+
+  const errEl = document.getElementById("drum-error");
+  let err = drumState.error;
+  if (!err && !res.feasible) {
+    err = res.turns_per_layer < 1
+      ? "Infeasible — drum is shorter than one cable diameter."
+      : "Infeasible — drum radius would be ≤ 0. Shorten the drum or use fewer layers.";
+  }
+  errEl.hidden = !err;
+  errEl.textContent = err || "";
+
+  const mm = (m) => (res.feasible ? `${mToMm(m).toFixed(1)} mm` : "—");
+  document.getElementById("drum-stat-outer").textContent = mm(res.outer_radius_m);
+  document.getElementById("drum-stat-turns").textContent = res.turns_per_layer;
+  document.getElementById("drum-stat-total-turns").textContent = res.total_turns;
+  document.getElementById("drum-stat-capacity").textContent =
+    res.feasible ? `${res.capacity_m.toFixed(2)} m` : "—";
+}
+
+document.getElementById("drum-lock-L").addEventListener("click", () => {
+  drumState.L_locked = !drumState.L_locked;
+  drumState.error = null;
+  renderDrum();
+});
+for (const key of Object.keys(DRUM_OUTPUTS)) {
+  document.getElementById(`drum-lock-out-${key}`).addEventListener("click", () => {
+    drumState.target = key;
+    drumState.error = null;
+    renderDrum();
+  });
+  const input = document.getElementById(DRUM_OUTPUTS[key].elId);
+  input.addEventListener("change", () => {
+    const v = parseFloat(input.value);
+    if (Number.isNaN(v) || v <= 0) {
+      drumState.error = "Enter a positive number.";
+    } else {
+      drumState[DRUM_OUTPUTS[key].stateKey] = v;
+      drumState.error = null;
+    }
+    renderDrum();
+  });
+}
+
+function bindDrumInput(elId, stateKey, parse, isValid) {
+  const el = document.getElementById(elId);
+  el.addEventListener("input", () => {
+    const v = parse(el.value);
+    if (isValid(v)) {
+      drumState[stateKey] = v;
+      renderDrum();
+    }
+  });
+}
+bindDrumInput("drum-in-L_m", "L_m", parseFloat, (v) => v > 0);
+bindDrumInput("drum-in-d_mm", "d_mm", parseFloat, (v) => v > 0);
+bindDrumInput("drum-in-layers", "layers", (x) => parseInt(x, 10), (v) => v >= 1);
+
+const drumFormulasBtn = document.getElementById("drum-btn-show-formulas");
+const drumFormulasPanel = document.getElementById("drum-formulas-panel");
+drumFormulasBtn.addEventListener("click", () => {
+  const willShow = drumFormulasPanel.hidden;
+  drumFormulasPanel.hidden = !willShow;
+  drumFormulasBtn.textContent = willShow ? "Hide formulas" : "Show formulas";
+  drumFormulasBtn.setAttribute("aria-expanded", String(willShow));
+  if (willShow) drumFormulasPanel.scrollIntoView?.({ behavior: "smooth", block: "start" });
+});
+
+renderDrum();
 </script>
 
 </body>

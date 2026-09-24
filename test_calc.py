@@ -216,9 +216,8 @@ def test_solve_for_2_burst_margin_requires_dP_rated_pa():
     must succeed (dP_rated_pa can reach any burst_margin; Q_m3s can reach
     any v_hose independently)."""
     # burst_margin = p_burst_pa / dP_rated_pa; with p_burst_pa fixed at 4000
-    # psi and dP_rated_pa's bracket capped at ~435 psi, achievable burst
-    # margins are roughly [9.2, 552] — 13.33 (the P40-300psi default case)
-    # is comfortably inside that.
+    # psi and dP_rated_pa's (effectively uncapped) bracket, 13.33 (the
+    # P40-300psi default case) is comfortably achievable.
     result = calc.solve_for_2(
         "dP_rated_pa", "Q_m3s", "burst_margin", 13.33, "v_hose", 4.0,
         _BASE_2D_INPUTS,
@@ -240,3 +239,185 @@ def test_solve_for_2_infeasible_when_neither_variable_affects_either_target():
             "L_m", "H_m", "burst_margin", 13.33, "v_hose", 4.0,
             _BASE_2D_INPUTS,
         )
+
+
+# ---------------------------------------------------------------------------
+# Stage 7 — footprint area: geometric spreading, cone vs. fan
+# ---------------------------------------------------------------------------
+
+def test_footprint_geometric_formulas():
+    # Point-origin (nozzle_area_mm2=0 default) isolates the pure
+    # angle/standoff decay shape.
+    s, theta = 1000, 40
+    tan_half = np.tan(np.radians(theta) / 2.0)
+    assert calc.footprint_area_mm2("cone", s, theta) == pytest.approx(np.pi * (s * tan_half) ** 2)
+    assert calc.footprint_area_mm2("fan", s, theta, 0, 25) == pytest.approx(2 * s * tan_half * 25)
+
+
+def test_footprint_turbulent_floor_nonzero_at_theta_0():
+    # The geometric term vanishes at theta=0; the turbulent floor must take
+    # over rather than returning a zero-area (infinite-pressure) footprint.
+    assert calc.footprint_area_mm2("cone", 1000, 0) > 0
+    assert calc.footprint_area_mm2("fan", 1000, 0, 0, 25) > 0
+    assert calc.footprint_area_mm2("cone", 1000, 0) == pytest.approx(
+        (np.pi * 1000**2) / (4 * calc.K_ROUND_TURB**2)
+    )
+    assert calc.footprint_area_mm2("fan", 1000, 0, 0, 25) == pytest.approx(
+        (1000 / calc.K_FLAT_TURB) * 25
+    )
+
+
+def test_footprint_cone_scales_as_standoff_squared_fan_scales_linearly():
+    # At a spray angle wide enough that geometric spreading dominates (60deg),
+    # a 10x standoff increase grows the cone footprint ~100x (area ~
+    # standoff^2) but the fan footprint only ~10x (area ~ standoff^1) — the
+    # real reason a fan nozzle holds pressure over distance better than a
+    # cone.
+    cone_near = calc.footprint_area_mm2("cone", 200, 60)
+    cone_far = calc.footprint_area_mm2("cone", 2000, 60)
+    assert cone_far / cone_near == pytest.approx(100.0, rel=0.01)
+
+    fan_near = calc.footprint_area_mm2("fan", 200, 60, 0, 25)
+    fan_far = calc.footprint_area_mm2("fan", 2000, 60, 0, 25)
+    assert fan_far / fan_near == pytest.approx(10.0, rel=0.01)
+
+
+# ---------------------------------------------------------------------------
+# Stage 7 — finite nozzle exit size (point-origin was the actual bug)
+# ---------------------------------------------------------------------------
+
+def test_footprint_floors_at_nozzle_area_at_zero_standoff():
+    # Point-origin cone/fan models predict a footprint that shrinks below
+    # the nozzle's own exit area as standoff -> 0 — physically impossible,
+    # since f_geometric = A_nozzle/A_footprint would exceed 1. The fix
+    # originates both patterns from the real (finite) exit size instead of
+    # a point: at standoff=0 the footprint must equal the nozzle's own exit
+    # area exactly — not smaller, not a point.
+    nozzle_area_mm2 = 50.0  # e.g. an ~8mm-diameter round orifice
+    assert calc.footprint_area_mm2("cone", 0, 40, nozzle_area_mm2) == pytest.approx(nozzle_area_mm2)
+    assert calc.footprint_area_mm2("fan", 0, 40, nozzle_area_mm2, 25) == pytest.approx(nozzle_area_mm2)
+
+
+@pytest.mark.parametrize("s", [0, 5, 50, 200, 2000])
+def test_footprint_never_below_nozzle_area(s):
+    # The physical bound: footprint area can never be smaller than the
+    # nozzle exit producing it, at any standoff, for either pattern.
+    nozzle_area_mm2 = 50.0
+    assert calc.footprint_area_mm2("cone", s, 40, nozzle_area_mm2) >= nozzle_area_mm2 - 1e-9
+    assert calc.footprint_area_mm2("fan", s, 40, nozzle_area_mm2, 25) >= nozzle_area_mm2 - 1e-9
+
+
+def test_footprint_converges_to_point_origin_at_large_standoff():
+    nozzle_area_mm2 = 50.0
+    with_nozzle = calc.footprint_area_mm2("cone", 2000, 40, nozzle_area_mm2)
+    point_origin = calc.footprint_area_mm2("cone", 2000, 40)
+    assert with_nozzle == pytest.approx(point_origin, rel=0.02)
+
+
+# ---------------------------------------------------------------------------
+# Stage 7 — local impact pressure (P_local = F_jet / A_footprint)
+# ---------------------------------------------------------------------------
+
+def test_local_impact_pressure_scales_with_force_over_area():
+    assert calc.local_impact_pressure(1000.0, 1_000_000.0) == pytest.approx(1000.0)
+    assert calc.local_impact_pressure(2000.0, 1_000_000.0) == pytest.approx(2000.0)
+
+
+def test_local_impact_pressure_guarded_at_zero_footprint():
+    assert calc.local_impact_pressure(500.0, 0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Stage 8 — cleaning verdict thresholds
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("r, expected", [
+    (2.0, "green"),
+    (5.0, "green"),
+    (1.0, "yellow"),
+    (1.99, "yellow"),
+    (0.99, "red"),
+    (0.0, "red"),
+])
+def test_cleaning_verdict_thresholds(r, expected):
+    assert calc.cleaning_verdict(r) == expected
+
+
+def test_forward_solve_wires_up_cleaning_verdict():
+    inputs = dict(_BASE_2D_INPUTS)
+    inputs["standoff_mm"] = 1000
+    inputs["spray_angle_deg"] = 40
+    inputs["nozzle_pattern"] = "cone"
+    inputs["p_threshold_pa"] = 800_000.0
+    result = calc.forward_solve(inputs)
+    # forward_solve derives the nozzle's real exit area from continuity
+    # (Q/v_exit) and feeds it in — recompute the same way to check the wiring.
+    nozzle_area_mm2 = (inputs["Q_m3s"] / result["v_exit"]) * 1e6
+    expected_footprint = calc.footprint_area_mm2("cone", 1000, 40, nozzle_area_mm2)
+    assert result["footprint_mm2"] == pytest.approx(expected_footprint)
+    assert result["P_local_pa"] == pytest.approx(result["F_jet"] / (expected_footprint * 1e-6))
+    assert result["cleaning_R"] == pytest.approx(result["P_local_pa"] / 800_000.0)
+    assert result["cleaning_verdict"] == calc.cleaning_verdict(result["cleaning_R"])
+    assert result["footprint_mm2"] >= nozzle_area_mm2 - 1e-6
+
+
+def test_forward_solve_nozzle_pattern_defaults_to_cone():
+    inputs = dict(_BASE_2D_INPUTS)
+    inputs["standoff_mm"] = 1000
+    inputs["spray_angle_deg"] = 40
+    result = calc.forward_solve(inputs)
+    nozzle_area_mm2 = (inputs["Q_m3s"] / result["v_exit"]) * 1e6
+    expected_footprint = calc.footprint_area_mm2("cone", 1000, 40, nozzle_area_mm2)
+    assert result["footprint_mm2"] == pytest.approx(expected_footprint)
+
+
+def test_forward_solve_infeasible_footprint_finite():
+    # v_exit=0 when infeasible; nozzle area must fall back to 0, not NaN
+    # or a crash.
+    inputs = dict(_BASE_2D_INPUTS)
+    inputs["standoff_mm"] = 1000
+    inputs["spray_angle_deg"] = 40
+    inputs["dP_rated_pa"] = 1000.0
+    result = calc.forward_solve(inputs)
+    assert np.isfinite(result["footprint_mm2"]) and result["footprint_mm2"] >= 0
+    assert result["P_local_pa"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Cable drum
+# ---------------------------------------------------------------------------
+
+def test_drum_one_layer_hand_worked():
+    res = calc.drum_solve_radius(100, 0.01, 1, 0.5)
+    assert res["turns_per_layer"] == 50
+    assert res["r_m"] == pytest.approx(100 / (2 * math.pi * 50) - 0.005, rel=1e-12)
+    assert res["feasible"]
+
+
+def test_drum_three_layers_and_round_trip():
+    res = calc.drum_solve_radius(200, 0.008, 3, 0.4)
+    assert res["turns_per_layer"] == 50
+    assert res["r_m"] == pytest.approx(200 / (2 * math.pi * 50 * 3) - 0.012, rel=1e-12)
+    assert calc.drum_capacity(res["r_m"], 0.4, 0.008, 3) == pytest.approx(200, rel=1e-12)
+    back = calc.drum_solve_length(200, 0.008, 3, res["r_m"])
+    assert back["turns_per_layer"] == 50
+    assert back["W_m"] == pytest.approx(0.4, rel=1e-12)
+
+
+def test_drum_length_is_minimal_and_holds_cable():
+    w = calc.drum_solve_length(137, 0.012, 2, 0.15)["W_m"]
+    assert calc.drum_capacity(0.15, w, 0.012, 2) >= 137
+    assert calc.drum_capacity(0.15, w - 0.012, 0.012, 2) < 137
+
+
+def test_drum_infeasible():
+    bad = calc.drum_forward({"solve": "r", "L_m": 1, "d_m": 0.01, "layers": 5, "W_m": 1})
+    assert not bad["feasible"]
+    assert not calc.drum_solve_radius(10, 0.01, 1, 0.005)["feasible"]
+
+
+def test_drum_forward_capacity_mode():
+    f = calc.drum_forward({"solve": "L", "r_m": 0.2, "W_m": 0.3, "d_m": 0.01, "layers": 2})
+    assert f["L_m"] == pytest.approx(2 * math.pi * 30 * 2 * 0.21, rel=1e-12)
+    assert f["outer_radius_m"] == pytest.approx(0.22)
+    assert f["total_turns"] == 60

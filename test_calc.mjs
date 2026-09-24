@@ -218,9 +218,9 @@ const BASE_2D_INPUTS = {
 
 // burst_margin depends only on dP_rated_pa among the 5 lockable inputs.
 // Solving it alongside v_hose by varying {dP_rated_pa, Q_m3s} must
-// succeed. Achievable burst_margin range given p_burst_pa fixed at 4000
-// psi and dP_rated_pa's bracket (~7.25-435 psi) is ~[9.2, 552]; 13.33
-// (the P40-300psi default case) is comfortably inside that.
+// succeed. Achievable burst_margin range given p_burst_pa fixed at 4000 psi
+// and dP_rated_pa's (effectively uncapped) bracket easily spans 13.33 (the
+// P40-300psi default case).
 {
   const result = calc.solveFor2(
     "dP_rated_pa", "Q_m3s", "burst_margin", 13.33, "v_hose", 4.0,
@@ -243,6 +243,156 @@ const BASE_2D_INPUTS = {
     threw = true;
   }
   check(threw, "solveFor2.infeasible_combination_throws");
+}
+
+// --- Stage 7: footprint area — geometric spreading, cone vs. fan ---
+{
+  // Geometric formula sanity, both patterns, point-origin (nozzleAreaMm2=0
+  // default) — isolates the pure angle/standoff decay shape.
+  const s = 1000, theta = 40;
+  const tanHalf = Math.tan((theta * Math.PI) / 360);
+  approx(calc.footprintAreaMm2("cone", s, theta), Math.PI * (s * tanHalf) ** 2, 1e-6, "footprint.cone_geometric_formula");
+  approx(calc.footprintAreaMm2("fan", s, theta, 0, 25), 2 * s * tanHalf * 25, 1e-6, "footprint.fan_geometric_formula");
+
+  // At theta=0 the geometric term vanishes; the turbulent floor must take
+  // over rather than returning a zero-area (infinite-pressure) footprint.
+  check(calc.footprintAreaMm2("cone", 1000, 0) > 0, "footprint.cone_turbulent_floor_nonzero_at_theta_0");
+  check(calc.footprintAreaMm2("fan", 1000, 0, 0, 25) > 0, "footprint.fan_turbulent_floor_nonzero_at_theta_0");
+  approx(
+    calc.footprintAreaMm2("cone", 1000, 0),
+    (Math.PI * 1000 ** 2) / (4 * calc.K_ROUND_TURB ** 2),
+    1e-6,
+    "footprint.cone_turbulent_floor_formula"
+  );
+  approx(
+    calc.footprintAreaMm2("fan", 1000, 0, 0, 25),
+    (1000 / calc.K_FLAT_TURB) * 25,
+    1e-6,
+    "footprint.fan_turbulent_floor_formula"
+  );
+
+  // The physics claim under test: at a spray angle wide enough that
+  // geometric spreading dominates (60°), a 10x standoff increase grows the
+  // cone footprint ~100x (area ~ standoff^2) but the fan footprint only
+  // ~10x (area ~ standoff^1) — the real reason a fan nozzle holds pressure
+  // over distance better than a cone.
+  const coneNear = calc.footprintAreaMm2("cone", 200, 60);
+  const coneFar = calc.footprintAreaMm2("cone", 2000, 60);
+  approx(coneFar / coneNear, 100.0, 0.01, "footprint.cone_area_scales_as_standoff_squared");
+
+  const fanNear = calc.footprintAreaMm2("fan", 200, 60, 0, 25);
+  const fanFar = calc.footprintAreaMm2("fan", 2000, 60, 0, 25);
+  approx(fanFar / fanNear, 10.0, 0.01, "footprint.fan_area_scales_linearly_with_standoff");
+}
+
+// --- Stage 7: finite nozzle exit size (point-origin was the actual bug) ---
+{
+  // Point-origin cone/fan models predict a footprint that shrinks below the
+  // nozzle's own exit area as standoff -> 0 — physically impossible, since
+  // f_geometric = A_nozzle/A_footprint would exceed 1. The fix originates
+  // both patterns from the real (finite) exit size instead of a point.
+  const nozzleAreaMm2 = 50.0; // e.g. an ~8mm-diameter round orifice
+
+  // At standoff=0 the footprint must equal the nozzle's own exit area
+  // exactly — not smaller, not a point.
+  approx(calc.footprintAreaMm2("cone", 0, 40, nozzleAreaMm2), nozzleAreaMm2, 1e-6, "footprint.cone_floors_at_nozzle_area_at_zero_standoff");
+  approx(calc.footprintAreaMm2("fan", 0, 40, nozzleAreaMm2, 25), nozzleAreaMm2, 1e-6, "footprint.fan_floors_at_nozzle_area_at_zero_standoff");
+
+  // The physical bound itself: footprint area can never be smaller than the
+  // nozzle exit that's producing it, at any standoff, for either pattern.
+  for (const s of [0, 5, 50, 200, 2000]) {
+    check(calc.footprintAreaMm2("cone", s, 40, nozzleAreaMm2) >= nozzleAreaMm2 - 1e-9, `footprint.cone_never_below_nozzle_area_at_s${s}`);
+    check(calc.footprintAreaMm2("fan", s, 40, nozzleAreaMm2, 25) >= nozzleAreaMm2 - 1e-9, `footprint.fan_never_below_nozzle_area_at_s${s}`);
+  }
+
+  // At large standoff the nozzle-size offset becomes negligible, converging
+  // back to the point-origin formula.
+  const withNozzle = calc.footprintAreaMm2("cone", 2000, 40, nozzleAreaMm2);
+  const pointOrigin = calc.footprintAreaMm2("cone", 2000, 40);
+  approx(withNozzle, pointOrigin, 0.02, "footprint.cone_converges_to_point_origin_at_large_standoff");
+}
+
+// --- Stage 7: local impact pressure (P_local = F_jet / A_footprint) ---
+{
+  approx(calc.localImpactPressure(1000.0, 1_000_000.0), 1000.0, 1e-9, "local_impact_pressure.one_newton_per_m2");
+  approx(calc.localImpactPressure(2000.0, 1_000_000.0), 2000.0, 1e-9, "local_impact_pressure.scales_with_force");
+  check(calc.localImpactPressure(500.0, 0) === 0.0, "local_impact_pressure.zero_footprint_guarded");
+}
+
+// --- Stage 8: cleaning verdict thresholds ---
+{
+  check(calc.cleaningVerdict(2.0) === "green", "cleaning_verdict.at_2_is_green");
+  check(calc.cleaningVerdict(5.0) === "green", "cleaning_verdict.above_2_is_green");
+  check(calc.cleaningVerdict(1.0) === "yellow", "cleaning_verdict.at_1_is_yellow");
+  check(calc.cleaningVerdict(1.99) === "yellow", "cleaning_verdict.just_under_2_is_yellow");
+  check(calc.cleaningVerdict(0.99) === "red", "cleaning_verdict.just_under_1_is_red");
+  check(calc.cleaningVerdict(0.0) === "red", "cleaning_verdict.zero_is_red");
+}
+
+// --- Stage 7+8 wired into forward_solve ---
+{
+  const inputs = {
+    ...BASE_2D_INPUTS,
+    standoff_mm: 1000,
+    spray_angle_deg: 40,
+    nozzle_pattern: "cone",
+    p_threshold_pa: 800_000.0,
+  };
+  const result = calc.forwardSolve(inputs);
+  // forwardSolve derives the nozzle's real exit area from continuity
+  // (Q/v_exit) and feeds it in — recompute the same way to check the wiring.
+  const nozzleAreaMm2 = (inputs.Q_m3s / result.v_exit) * 1e6;
+  const expectedFootprint = calc.footprintAreaMm2("cone", 1000, 40, nozzleAreaMm2);
+  approx(result.footprint_mm2, expectedFootprint, 1e-6, "forward_solve.footprint_mm2");
+  approx(result.P_local_pa, result.F_jet / (expectedFootprint * 1e-6), 1e-6, "forward_solve.P_local_pa");
+  approx(result.cleaning_R, result.P_local_pa / 800_000.0, 1e-9, "forward_solve.cleaning_R");
+  check(result.cleaning_verdict === calc.cleaningVerdict(result.cleaning_R), "forward_solve.cleaning_verdict_matches_ratio");
+  check(result.footprint_mm2 >= nozzleAreaMm2 - 1e-6, "forward_solve.footprint_never_below_nozzle_area");
+
+  // nozzle_pattern defaults to "cone" when omitted.
+  const defaultResult = calc.forwardSolve({ ...inputs, nozzle_pattern: undefined });
+  approx(defaultResult.footprint_mm2, expectedFootprint, 1e-6, "forward_solve.nozzle_pattern_defaults_to_cone");
+
+  // Infeasible case (v_exit=0): nozzle area treated as 0, no crash/NaN.
+  const infeasible = calc.forwardSolve({ ...inputs, dP_rated_pa: 1000.0 });
+  check(Number.isFinite(infeasible.footprint_mm2) && infeasible.footprint_mm2 >= 0, "forward_solve.infeasible_footprint_finite");
+  check(infeasible.P_local_pa === 0.0, "forward_solve.infeasible_P_local_zero");
+}
+
+// --- Cable drum ---
+{
+  // 1 layer, hand-worked: n = 0.5/0.01 = 50, r = 100/(2*pi*50) - 0.005
+  const r1 = calc.drumSolveRadius(100, 0.01, 1, 0.5);
+  check(r1.turns_per_layer === 50, "drum.one_layer_turns");
+  approx(r1.r_m, 100 / (2 * Math.PI * 50) - 0.005, 1e-12, "drum.one_layer_radius");
+  check(r1.feasible, "drum.one_layer_feasible");
+
+  // 3 layers: r = L/(2*pi*n*N) - N*d/2
+  const r3 = calc.drumSolveRadius(200, 0.008, 3, 0.4);
+  check(r3.turns_per_layer === 50, "drum.three_layer_turns");
+  approx(r3.r_m, 200 / (2 * Math.PI * 50 * 3) - 0.012, 1e-12, "drum.three_layer_radius");
+  approx(calc.drumCapacity(r3.r_m, 0.4, 0.008, 3), 200, 1e-12, "drum.capacity_matches_L_exactly");
+
+  // Round trip: the radius solved from W gives back the same turn count.
+  const w = calc.drumSolveLength(200, 0.008, 3, r3.r_m);
+  check(w.turns_per_layer === 50, "drum.round_trip_turns");
+  approx(w.W_m, 0.4, 1e-12, "drum.round_trip_length");
+
+  // Rounded-up length always holds at least L.
+  const w2 = calc.drumSolveLength(137, 0.012, 2, 0.15);
+  check(calc.drumCapacity(0.15, w2.W_m, 0.012, 2) >= 137, "drum.capacity_at_least_L");
+  check(calc.drumCapacity(0.15, w2.W_m - 0.012, 0.012, 2) < 137, "drum.length_is_minimal");
+
+  // Drum too long for the cable -> barrel radius <= 0 -> infeasible.
+  const bad = calc.drumForward({ solve: "r", L_m: 1, d_m: 0.01, layers: 5, W_m: 1 });
+  check(!bad.feasible, "drum.infeasible_when_radius_nonpositive");
+  check(!calc.drumSolveRadius(10, 0.01, 1, 0.005).feasible, "drum.infeasible_when_no_whole_turn");
+
+  // forward: L mode returns capacity, outer radius adds N*d.
+  const f = calc.drumForward({ solve: "L", r_m: 0.2, W_m: 0.3, d_m: 0.01, layers: 2 });
+  approx(f.L_m, 2 * Math.PI * 30 * 2 * (0.2 + 0.01), 1e-12, "drum.forward_L");
+  approx(f.outer_radius_m, 0.22, 1e-12, "drum.forward_outer_radius");
+  check(f.total_turns === 60, "drum.forward_total_turns");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
