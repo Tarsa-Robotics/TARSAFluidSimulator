@@ -405,5 +405,67 @@ const BASE_2D_INPUTS = {
   }
 }
 
+// --- Winch motor ---
+{
+  approx(calc.drumTopRadius(0.1, 0.01, 3), 0.1 + 0.005 + 0.02, 1e-12, "winch.top_radius");
+
+  // Hand-worked: F=500 N, r=0.1 m, G=10, eta=0.9, v=1 m/s
+  const base = { F_n: 500, v_ms: 1, G: 10, eta: 0.9, r_eff_m: 0.1 };
+  const f = calc.winchForward(base);
+  approx(f.T_motor_nm, 500 * 0.1 / 9, 1e-12, "winch.torque");
+  approx(f.rpm_motor, 10 * 60 / (2 * Math.PI * 0.1), 1e-12, "winch.rpm");
+  approx(f.power_w, 500 / 0.9, 1e-12, "winch.power");
+
+  // Every solvable 1-unknown combination round-trips.
+  for (const v of ["F_n", "v_ms", "G"]) {
+    for (const m of ["T_motor_nm", "rpm_motor", "power_w"]) {
+      let got;
+      try {
+        got = calc.winchSolve([v], { [m]: f[m] }, base);
+      } catch (e) {
+        check((m === "T_motor_nm" && v === "v_ms") || (m === "rpm_motor" && v === "F_n") ||
+          (m === "power_w" && v === "G"), `winch.only_independent_pairs_throw(${v},${m})`);
+        continue;
+      }
+      approx(got[v], base[v], 1e-9, `winch.round_trip(${v},${m})`);
+    }
+  }
+
+  // 2x2: solve G and v from torque + rpm.
+  const two = calc.winchSolve(["G", "v_ms"], { T_motor_nm: f.T_motor_nm, rpm_motor: f.rpm_motor }, base);
+  approx(two.G, 10, 1e-9, "winch.2x2_G");
+  approx(two.v_ms, 1, 1e-9, "winch.2x2_v");
+  // F + v from power alone plus torque: F from torque, then v from power.
+  const fv = calc.winchSolve(["F_n", "v_ms"], { T_motor_nm: f.T_motor_nm, power_w: f.power_w }, base);
+  approx(fv.F_n, 500, 1e-9, "winch.2x2_F");
+  approx(fv.v_ms, 1, 1e-9, "winch.2x2_v_from_power");
+
+  let threw = false;
+  try { calc.winchSolve(["G"], { power_w: 100 }, base); } catch (e) { threw = true; }
+  check(threw, "winch.singular_throws");
+
+  // Kt from Kv when blank; ratings from currents.
+  const kv = calc.motorRatings("kv", { Kv_rpm_v: 100, V_supply: 48, I_cont_a: 20, I_peak_a: 60 });
+  approx(kv.Kt, 60 / (2 * Math.PI * 100), 1e-12, "motor.kt_from_kv");
+  approx(kv.T_cont, kv.Kt * 20, 1e-12, "motor.t_cont_from_current");
+  approx(kv.rpm_noload, 4800, 1e-12, "motor.noload_rpm");
+  const kvGiven = calc.motorRatings("kv", { Kv_rpm_v: 100, Kt_nm_a: 0.2, V_supply: 48, I_cont_a: 20, I_peak_a: 60 });
+  approx(kvGiven.Kt, 0.2, 1e-12, "motor.kt_given_wins");
+
+  // Checks flip at their thresholds.
+  const ds = calc.motorRatings("datasheet", { T_cont_nm: 1, T_peak_nm: 3, rpm_noload: 3000 });
+  check(calc.motorChecks(ds, 1.0, 0).holding_ok, "motor.holding_ok_at_limit");
+  check(!calc.motorChecks(ds, 1.01, 0).holding_ok, "motor.holding_fails_above");
+  approx(calc.motorChecks(ds, 1.5, 0).rpm_available, 1500, 1e-12, "motor.rpm_available_half");
+  check(calc.motorChecks(ds, 1.5, 1500).speed_ok, "motor.speed_ok_at_limit");
+  check(!calc.motorChecks(ds, 1.5, 1501).speed_ok, "motor.speed_fails_above");
+  check(!calc.motorChecks(ds, 1.5, 0).past_max_power, "motor.at_half_not_past");
+  check(calc.motorChecks(ds, 1.51, 0).past_max_power, "motor.past_max_power");
+  check(calc.motorChecks(ds, 1, 0).current_a === null, "motor.no_current_in_datasheet_mode");
+  const kc = calc.motorChecks(kv, kv.T_cont, 0);
+  approx(kc.current_a, 20, 1e-9, "motor.current");
+  check(kc.current_ok, "motor.current_ok_at_limit");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

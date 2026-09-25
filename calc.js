@@ -457,6 +457,125 @@
     };
   }
 
+  // --- Winch motor sizing -----------------------------------------------
+  // Cable -> drum -> gearbox/pulley (ratio G, efficiency eta) -> motor.
+  // Torque is taken hauling in (worst case: eta works against the motor).
+
+  /** Centerline radius of the outermost layer — worst case for torque. */
+  function drumTopRadius(rM, dM, layers) {
+    return rM + dM / 2 + (layers - 1) * dM;
+  }
+
+  function winchForward({ F_n, v_ms, G, eta, r_eff_m }) {
+    return {
+      T_motor_nm: (F_n * r_eff_m) / (G * eta),
+      rpm_motor: (G * v_ms * 60) / (2 * Math.PI * r_eff_m),
+      power_w: (F_n * v_ms) / eta,
+    };
+  }
+
+  const WINCH_VARS = ["F_n", "v_ms", "G"];
+  const WINCH_NAMES = {
+    F_n: "tension F", v_ms: "line speed v", G: "gear ratio G",
+    T_motor_nm: "motor torque", rpm_motor: "motor speed", power_w: "power",
+  };
+  const winchNames = (keys) => keys.map((k) => WINCH_NAMES[k]).join(" + ");
+  // Every winch metric is a product of powers of F, v, G, so in log space
+  // each target is a linear equation: exponents over [F_n, v_ms, G].
+  const WINCH_EXPONENTS = {
+    T_motor_nm: [1, 0, -1],
+    rpm_motor: [0, 1, 1],
+    power_w: [1, 1, 0],
+  };
+
+  /**
+   * Solve 1 or 2 unlocked winch inputs so the same number of locked metrics
+   * hit their targets. Exact (linear solve in log-values), no root-finder.
+   * Throws when the combination has no unique solution, e.g. power targeted
+   * while only G is unlocked (power doesn't depend on G).
+   */
+  function winchSolve(unlockedVars, targets, fixed) {
+    const metrics = Object.keys(targets);
+    if (unlockedVars.length !== metrics.length || metrics.length < 1 || metrics.length > 2) {
+      throw new Error("winchSolve: need the same number (1 or 2) of unlocked inputs and targets");
+    }
+    for (const m of metrics) {
+      if (!(targets[m] > 0)) throw new Error(`winchSolve: target ${m} must be positive`);
+    }
+    // ln(metric) = sum(e_i * ln x_i) + ln c, with c = metric at F = v = G = 1.
+    const unit = winchForward({ ...fixed, F_n: 1, v_ms: 1, G: 1 });
+    const A = [];
+    const b = [];
+    for (const m of metrics) {
+      const exps = WINCH_EXPONENTS[m];
+      let rhs = Math.log(targets[m]) - Math.log(unit[m]);
+      const row = [];
+      WINCH_VARS.forEach((v, i) => {
+        if (unlockedVars.includes(v)) return;
+        rhs -= exps[i] * Math.log(fixed[v]);
+      });
+      for (const v of unlockedVars) row.push(exps[WINCH_VARS.indexOf(v)]);
+      A.push(row);
+      b.push(rhs);
+    }
+    let y;
+    if (metrics.length === 1) {
+      if (A[0][0] === 0) throw new Error(`${winchNames(metrics)} doesn't depend on ${winchNames(unlockedVars)} — pick another combination.`);
+      y = [b[0] / A[0][0]];
+    } else {
+      const det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+      if (Math.abs(det) < 1e-12) {
+        throw new Error(`No unique solution for ${winchNames(metrics)} varying ${winchNames(unlockedVars)} — pick another combination.`);
+      }
+      y = [(b[0] * A[1][1] - A[0][1] * b[1]) / det, (A[0][0] * b[1] - b[0] * A[1][0]) / det];
+    }
+    const out = {};
+    unlockedVars.forEach((v, i) => { out[v] = Math.exp(y[i]); });
+    return out;
+  }
+
+  /**
+   * Motor torque/speed limits, from a datasheet or from Kv/Kt + current
+   * limits. Kt defaults to the ideal-motor relation Kt = 60 / (2*pi*Kv).
+   */
+  function motorRatings(mode, p) {
+    if (mode === "datasheet") {
+      return { T_cont: p.T_cont_nm, T_peak: p.T_peak_nm, rpm_noload: p.rpm_noload, Kt: null, I_cont: null };
+    }
+    if (mode === "kv") {
+      const Kt = p.Kt_nm_a > 0 ? p.Kt_nm_a : 60 / (2 * Math.PI * p.Kv_rpm_v);
+      return {
+        T_cont: Kt * p.I_cont_a,
+        T_peak: Kt * p.I_peak_a,
+        rpm_noload: p.Kv_rpm_v * p.V_supply,
+        Kt,
+        I_cont: p.I_cont_a,
+      };
+    }
+    throw new Error(`motorRatings: unknown mode ${mode}`);
+  }
+
+  /**
+   * Checks the operating point (T, rpm) against the motor. The motor holds
+   * the load with current, so T must fit under the continuous rating even at
+   * 0 RPM. Available speed uses the linear torque-speed line with peak
+   * torque standing in for stall torque (conservative).
+   */
+  function motorChecks(ratings, T, rpm) {
+    const loadFraction = T / ratings.T_peak;
+    const rpmAvailable = ratings.rpm_noload * Math.max(0, 1 - loadFraction);
+    const currentA = ratings.Kt ? T / ratings.Kt : null;
+    return {
+      holding_ok: T <= ratings.T_cont,
+      speed_ok: rpm <= rpmAvailable,
+      rpm_available: rpmAvailable,
+      load_fraction: loadFraction,
+      past_max_power: loadFraction > 0.5,
+      current_a: currentA,
+      current_ok: currentA === null ? null : currentA <= ratings.I_cont,
+    };
+  }
+
   const TarsaCalc = {
     RHO_WATER,
     G,
@@ -492,6 +611,11 @@
     drumSolveLength,
     drumSolveSquare,
     drumForward,
+    drumTopRadius,
+    winchForward,
+    winchSolve,
+    motorRatings,
+    motorChecks,
   };
 
   if (typeof module !== "undefined" && module.exports) {

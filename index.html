@@ -702,6 +702,132 @@
   </div>
 </div>
 
+<div class="datum" style="margin:var(--sp-8) 0 var(--sp-5)"></div>
+<h3 class="t-h3">Winch motor</h3>
+<p class="t-sm" style="color:var(--fg-2);max-width:70ch;margin-top:var(--sp-2)">
+  Motor, gearbox and drum sizing for one CDPR cable. Uses the drum above at its top layer.
+  Unlock 1 or 2 inputs, then lock the same number of outputs as targets to solve them. The motor
+  holds the cable tension with current, so continuous torque must cover it even when stopped.
+  Default values are placeholders.
+</p>
+
+<div class="grid2" style="margin-top:var(--sp-5)">
+  <div>
+    <h3 class="t-h4">Inputs</h3>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-F_n"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-in-F_n" data-tooltip="F — the largest tension this cable must hold, from the CDPR workspace simulation.">Max cable tension F (N)</label>
+        <input class="field" type="number" id="winch-in-F_n" step="1">
+      </div>
+    </div>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-v_ms"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-in-v_ms" data-tooltip="v — fastest cable speed the winch must reach while at max tension.">Max line speed v (m/s)</label>
+        <input class="field" type="number" id="winch-in-v_ms" step="0.01">
+      </div>
+    </div>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-G"><span class="material-symbols-sharp">lock</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-in-G" data-tooltip="G — motor turns per drum turn. Higher G means less motor torque but more motor RPM.">Gear / pulley ratio G</label>
+        <input class="field" type="number" id="winch-in-G" step="0.1">
+      </div>
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="winch-in-eta" data-tooltip="η — gearbox/pulley efficiency (0–1). Planetary stages are often around 0.9 each; worm gears much lower.">Transmission efficiency η</label>
+      <input class="field" type="number" id="winch-in-eta" step="0.01" min="0.05" max="1">
+    </div>
+    <table class="dp-table" style="margin-bottom:var(--sp-4)">
+      <tr><td>Drum radius at top layer r<sub>eff</sub><span class="dep-dot" data-tooltip="Depends on: drum r, d, N"></span></td><td id="winch-stat-reff"></td></tr>
+    </table>
+
+    <div class="drum-out-head" style="margin-top:var(--sp-5)">
+      <h3 class="t-h4">Motor</h3>
+      <div class="pill-toggle" role="group" aria-label="Motor rating source">
+        <button type="button" id="winch-pill-datasheet" aria-pressed="true">Datasheet</button>
+        <button type="button" id="winch-pill-kv" aria-pressed="false">Kv / Kt</button>
+      </div>
+    </div>
+    <div id="winch-motor-datasheet" style="margin-top:var(--sp-3)">
+      <div class="plain-field">
+        <label class="field-label" for="winch-ds-T_cont_nm" data-tooltip="Torque the motor can hold indefinitely without overheating. Use the stall/0-RPM continuous figure if the datasheet gives one.">Continuous torque (N·m)</label>
+        <input class="field" type="number" id="winch-ds-T_cont_nm" step="0.01" min="0">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-ds-T_peak_nm" data-tooltip="Short-term maximum torque. Used as a stand-in for stall torque on the torque-speed line.">Peak torque (N·m)</label>
+        <input class="field" type="number" id="winch-ds-T_peak_nm" step="0.01" min="0">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-ds-rpm_noload" data-tooltip="Speed with no load at your supply voltage.">No-load speed (RPM)</label>
+        <input class="field" type="number" id="winch-ds-rpm_noload" step="10" min="0">
+      </div>
+    </div>
+    <div id="winch-motor-kv" style="margin-top:var(--sp-3)" hidden>
+      <div class="plain-field">
+        <label class="field-label" for="winch-kv-Kv_rpm_v" data-tooltip="Kv — no-load RPM per volt.">Kv (RPM/V)</label>
+        <input class="field" type="number" id="winch-kv-Kv_rpm_v" step="1" min="0">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-kv-Kt_nm_a" data-tooltip="Kt — torque per amp. Leave blank to derive it from Kv: Kt = 60 / (2π·Kv).">Kt (N·m/A), optional</label>
+        <input class="field" type="number" id="winch-kv-Kt_nm_a" step="0.001" min="0" placeholder="auto from Kv">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-kv-V_supply" data-tooltip="Voltage the driver delivers to the motor.">Supply voltage (V)</label>
+        <input class="field" type="number" id="winch-kv-V_supply" step="1" min="0">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-kv-I_cont_a" data-tooltip="Current the motor (and driver) can carry indefinitely.">Continuous current (A)</label>
+        <input class="field" type="number" id="winch-kv-I_cont_a" step="0.5" min="0">
+      </div>
+      <div class="plain-field">
+        <label class="field-label" for="winch-kv-I_peak_a" data-tooltip="Short-term maximum current.">Peak current (A)</label>
+        <input class="field" type="number" id="winch-kv-I_peak_a" step="0.5" min="0">
+      </div>
+    </div>
+
+    <div class="datum" style="margin:var(--sp-5) 0"></div>
+    <p class="status-caption" id="winch-status"></p>
+    <p class="error-box" id="winch-error" hidden></p>
+  </div>
+
+  <div>
+    <h3 class="t-h4" id="winch-output-head">Live output</h3>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-out-T_motor_nm"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-out-T_motor_nm" data-tooltip="Torque at the motor shaft to hold or haul in F at the top drum layer.">Motor torque needed (N·m)<span class="dep-dot" data-tooltip="Depends on: F, G, η, r_eff"></span></label>
+        <input class="field" type="number" id="winch-out-T_motor_nm" step="0.001">
+      </div>
+    </div>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-out-rpm_motor"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-out-rpm_motor" data-tooltip="Motor speed to reach v at the top drum layer.">Motor speed needed (RPM)<span class="dep-dot" data-tooltip="Depends on: v, G, r_eff"></span></label>
+        <input class="field" type="number" id="winch-out-rpm_motor" step="1">
+      </div>
+    </div>
+    <div class="lockrow">
+      <button class="lock-btn" id="winch-lock-out-power_w"><span class="material-symbols-sharp">lock_open</span></button>
+      <div class="field-col">
+        <label class="field-label" for="winch-out-power_w" data-tooltip="Power the motor delivers at F and v, including transmission losses.">Mechanical power (W)<span class="dep-dot" data-tooltip="Depends on: F, v, η"></span></label>
+        <input class="field" type="number" id="winch-out-power_w" step="1">
+      </div>
+    </div>
+
+    <details class="section-drop" open>
+      <summary class="t-h4">Motor checks</summary>
+      <table class="dp-table">
+        <tr><td>Holding at 0 RPM<span class="dep-dot" data-tooltip="Needed torque vs. continuous torque"></span></td><td><span class="status-dot" id="winch-dot-holding"></span><span id="winch-check-holding"></span></td></tr>
+        <tr><td>Speed at load<span class="dep-dot" data-tooltip="Needed RPM vs. RPM available at that torque on the torque-speed line"></span></td><td><span class="status-dot" id="winch-dot-speed"></span><span id="winch-check-speed"></span></td></tr>
+        <tr><td>Operating point<span class="dep-dot" data-tooltip="Needed torque as a fraction of peak torque. Past 50% is beyond the max-power point."></span></td><td><span class="status-dot" id="winch-dot-point"></span><span id="winch-check-point"></span></td></tr>
+        <tr id="winch-row-current"><td>Current<span class="dep-dot" data-tooltip="I = T / Kt vs. continuous current"></span></td><td><span class="status-dot" id="winch-dot-current"></span><span id="winch-check-current"></span></td></tr>
+      </table>
+    </details>
+  </div>
+</div>
+
 <div class="formulas-toggle-row">
   <button class="btn btn--outline" id="drum-btn-show-formulas" aria-expanded="false" aria-controls="drum-formulas-panel">
     Show formulas
@@ -758,6 +884,34 @@
     <h5>Zoltan's checkbox &mdash; diameter = length</h5>
     <div class="formula-eq">2r = W = n&middot;d &nbsp;&rArr;&nbsp; C = π &middot; N &middot; d &middot; n &middot; (n + N)</div>
     <p class="formula-note">n is the smallest whole number of turns with C &ge; L; both r and W follow from it.</p>
+  </div>
+
+  <h3 class="t-h3" style="margin-top:var(--sp-7)">Winch motor</h3>
+  <div class="formula-block">
+    <div class="step-no">07</div>
+    <h5>Worst-case drum radius</h5>
+    <div class="formula-eq">r<sub>eff</sub> = r + d/2 + (N &minus; 1)&middot;d</div>
+    <p class="formula-note">Centerline of the top layer: the largest lever arm, so the most torque and the fastest line speed per RPM.</p>
+  </div>
+  <div class="formula-block">
+    <div class="step-no">08</div>
+    <h5>Motor torque, speed, power</h5>
+    <div class="formula-eq">T = F &middot; r<sub>eff</sub> / (G &middot; η)</div><br>
+    <div class="formula-eq">RPM = G &middot; v &middot; 60 / (2π &middot; r<sub>eff</sub>)</div><br>
+    <div class="formula-eq">P = F &middot; v / η</div>
+    <p class="formula-note">Taken hauling in, where η works against the motor. When paying out under tension, T = F&middot;r<sub>eff</sub>&middot;η/G and the motor acts as a generator.</p>
+  </div>
+  <div class="formula-block">
+    <div class="step-no">09</div>
+    <h5>Solving</h5>
+    <p class="formula-note">Each output is a product of powers of F, v and G, so taking logs turns every target into a linear equation. One or two unknowns are solved exactly. Some pairs have no solution (e.g. power doesn't depend on G), and the page says so.</p>
+  </div>
+  <div class="formula-block">
+    <div class="step-no">10</div>
+    <h5>Motor checks</h5>
+    <div class="formula-eq">Kt = 60 / (2π &middot; Kv) &nbsp; (if not given); &nbsp; T<sub>cont</sub> = Kt&middot;I<sub>cont</sub>, &nbsp; T<sub>peak</sub> = Kt&middot;I<sub>peak</sub>, &nbsp; RPM<sub>0</sub> = Kv&middot;V</div><br>
+    <div class="formula-eq">holding: T &le; T<sub>cont</sub> &nbsp;&nbsp; speed: RPM &le; RPM<sub>0</sub>&middot;(1 &minus; T/T<sub>peak</sub>)</div>
+    <p class="formula-note">The motor holds tension with current, so continuous torque must cover T even at 0 RPM. Peak torque stands in for stall torque on the torque-speed line, which underestimates available speed (conservative). Max power sits at T = ½ stall; beyond that, the operating point is flagged.</p>
   </div>
 </section>
 </section>
@@ -1490,6 +1644,8 @@ function renderDrum() {
   document.getElementById("drum-stat-total-turns").textContent = res.total_turns;
   document.getElementById("drum-stat-capacity").textContent =
     res.feasible ? `${res.capacity_m.toFixed(2)} m` : "—";
+
+  renderWinch(res);
 }
 
 document.getElementById("drum-lock-L").addEventListener("click", () => {
@@ -1541,6 +1697,215 @@ function bindDrumInput(elId, stateKey, parse, isValid) {
 bindDrumInput("drum-in-L_m", "L_m", parseFloat, (v) => v > 0);
 bindDrumInput("drum-in-d_mm", "d_mm", parseFloat, (v) => v > 0);
 bindDrumInput("drum-in-layers", "layers", (x) => parseInt(x, 10), (v) => v >= 1);
+
+
+// --- Winch motor (same tab, reads the drum above) ---
+const WINCH_INPUTS = {
+  F_n: { label: "Max cable tension F (N)" },
+  v_ms: { label: "Max line speed v (m/s)" },
+  G: { label: "Gear / pulley ratio G" },
+};
+const WINCH_METRICS = {
+  T_motor_nm: { fmt: (x) => x.toFixed(3) },
+  rpm_motor: { fmt: (x) => x.toFixed(0) },
+  power_w: { fmt: (x) => x.toFixed(0) },
+};
+
+const winchState = {
+  F_n: 500, v_ms: 1, G: 50, eta: 0.9,
+  locks: { F_n: true, v_ms: true, G: true },
+  activeTargets: [],
+  motorMode: "datasheet",
+  ds: { T_cont_nm: 4, T_peak_nm: 12, rpm_noload: 3000 },
+  kv: { Kv_rpm_v: 100, Kt_nm_a: null, V_supply: 48, I_cont_a: 40, I_peak_a: 120 },
+  r_eff_m: NaN,
+  error: null,
+  uiMessage: null,
+};
+
+const winchUnlocked = () => Object.keys(WINCH_INPUTS).filter((v) => !winchState.locks[v]);
+const winchFixed = () => ({
+  F_n: winchState.F_n, v_ms: winchState.v_ms, G: winchState.G,
+  eta: winchState.eta, r_eff_m: winchState.r_eff_m,
+});
+
+function toggleWinchInputLock(v) {
+  winchState.uiMessage = null;
+  if (winchState.locks[v] && winchUnlocked().length >= MAX_SIMULTANEOUS_TARGETS) {
+    winchState.uiMessage = `Re-lock an input first — at most ${MAX_SIMULTANEOUS_TARGETS} can be unlocked at once.`;
+  } else {
+    winchState.locks[v] = !winchState.locks[v];
+    winchState.activeTargets = winchState.activeTargets.slice(0, winchUnlocked().length);
+    winchState.error = null;
+  }
+  renderWinch();
+}
+
+function toggleWinchOutputLock(m) {
+  winchState.uiMessage = null;
+  const n = winchUnlocked().length;
+  if (n === 0) return;
+  const idx = winchState.activeTargets.indexOf(m);
+  if (idx !== -1) {
+    winchState.activeTargets.splice(idx, 1);
+  } else if (winchState.activeTargets.length >= n) {
+    winchState.uiMessage = `Only ${n} target${n > 1 ? "s" : ""} can be locked while ${n} input${n > 1 ? "s are" : " is"} unlocked.`;
+  } else {
+    winchState.activeTargets.push(m);
+  }
+  winchState.error = null;
+  renderWinch();
+}
+
+function solveWinchTargets() {
+  const unlocked = winchUnlocked();
+  const targets = {};
+  for (const m of winchState.activeTargets) {
+    const v = parseFloat(document.getElementById(`winch-out-${m}`).value);
+    if (Number.isNaN(v)) return;
+    targets[m] = v;
+  }
+  if (unlocked.length === 0 || Object.keys(targets).length !== unlocked.length) return;
+  if (!(winchState.r_eff_m > 0)) return;
+  try {
+    Object.assign(winchState, calc.winchSolve(unlocked, targets, winchFixed()));
+    winchState.error = null;
+  } catch (e) {
+    winchState.error = e.message;
+  }
+  renderWinch();
+}
+
+function setCheck(key, status, text) {
+  document.getElementById(`winch-dot-${key}`).className = status ? `status-dot status-dot--${status}` : "status-dot";
+  document.getElementById(`winch-check-${key}`).textContent = text;
+}
+
+// drumRes is passed when the drum re-renders; otherwise the last r_eff is kept.
+function renderWinch(drumRes) {
+  if (drumRes) {
+    winchState.r_eff_m = drumRes.feasible
+      ? calc.drumTopRadius(drumRes.r_m, mmToM(drumState.d_mm), drumState.layers)
+      : NaN;
+  }
+  const ok = winchState.r_eff_m > 0;
+  const unlocked = winchUnlocked();
+  const solving = unlocked.length > 0;
+  const ready = solving && winchState.activeTargets.length === unlocked.length;
+
+  document.getElementById("winch-stat-reff").textContent = ok ? `${mToMm(winchState.r_eff_m).toFixed(1)} mm` : "— (drum infeasible)";
+
+  for (const v of Object.keys(WINCH_INPUTS)) {
+    const locked = winchState.locks[v];
+    const btn = document.getElementById(`winch-lock-${v}`);
+    btn.classList.toggle("active", locked);
+    btn.querySelector(".material-symbols-sharp").textContent = locked ? "lock" : "lock_open";
+    btn.title = locked
+      ? "Locked — fixed value. Click to unlock and include it as an unknown."
+      : "Unlocked — being solved for. Click to lock it again.";
+    const input = document.getElementById(`winch-in-${v}`);
+    input.disabled = !locked;
+    const val = winchState[v];
+    if (document.activeElement !== input) input.value = locked ? val : +val.toPrecision(5);
+  }
+  const etaEl = document.getElementById("winch-in-eta");
+  if (document.activeElement !== etaEl) etaEl.value = winchState.eta;
+
+  const out = ok ? calc.winchForward(winchFixed()) : null;
+  for (const m of Object.keys(WINCH_METRICS)) {
+    const isActive = winchState.activeTargets.includes(m);
+    const btn = document.getElementById(`winch-lock-out-${m}`);
+    btn.disabled = !solving;
+    btn.classList.toggle("active", isActive);
+    btn.querySelector(".material-symbols-sharp").textContent = isActive ? "lock" : "lock_open";
+    btn.title = isActive
+      ? "Active target — editable, drives the solve."
+      : solving
+      ? `Click to make this an active target (up to ${unlocked.length}).`
+      : "Unlock 1 or 2 inputs to enable.";
+    const input = document.getElementById(`winch-out-${m}`);
+    input.disabled = !isActive;
+    if (!isActive) input.value = out ? WINCH_METRICS[m].fmt(out[m]) : "";
+  }
+  document.getElementById("winch-output-head").textContent = solving ? "Targets" : "Live output";
+
+  const labels = unlocked.map((v) => WINCH_INPUTS[v].label);
+  const statusEl = document.getElementById("winch-status");
+  if (winchState.uiMessage) statusEl.textContent = winchState.uiMessage;
+  else if (!solving) statusEl.textContent = "All inputs locked — pure forward mode. Unlock 1 or 2 to enable solving.";
+  else if (!ready) {
+    const n = unlocked.length;
+    statusEl.innerHTML = `${n} input${n > 1 ? "s" : ""} unlocked (<b>${labels.join(", ")}</b>) — lock ${n} output${n > 1 ? "s" : ""} as target${n > 1 ? "s" : ""} to solve.`;
+  } else statusEl.innerHTML = `Solving for <b>${labels.join(" and ")}</b> — edit a locked target to update ${unlocked.length > 1 ? "them" : "it"}.`;
+  const errEl = document.getElementById("winch-error");
+  errEl.hidden = !winchState.error;
+  errEl.textContent = winchState.error || "";
+
+  // --- motor rating fields + checks ---
+  const kvMode = winchState.motorMode === "kv";
+  document.getElementById("winch-pill-datasheet").setAttribute("aria-pressed", String(!kvMode));
+  document.getElementById("winch-pill-kv").setAttribute("aria-pressed", String(kvMode));
+  document.getElementById("winch-motor-datasheet").hidden = kvMode;
+  document.getElementById("winch-motor-kv").hidden = !kvMode;
+  document.getElementById("winch-row-current").hidden = !kvMode;
+  for (const [k, v] of Object.entries(winchState.ds)) {
+    const el = document.getElementById(`winch-ds-${k}`);
+    if (document.activeElement !== el) el.value = v;
+  }
+  for (const [k, v] of Object.entries(winchState.kv)) {
+    const el = document.getElementById(`winch-kv-${k}`);
+    if (document.activeElement !== el) el.value = v ?? "";
+  }
+
+  if (!out) {
+    for (const k of ["holding", "speed", "point", "current"]) setCheck(k, null, "—");
+    return;
+  }
+  const ratings = calc.motorRatings(winchState.motorMode, kvMode ? winchState.kv : winchState.ds);
+  const c = calc.motorChecks(ratings, out.T_motor_nm, out.rpm_motor);
+  setCheck("holding", c.holding_ok ? "green" : "red",
+    `${out.T_motor_nm.toFixed(3)} of ${ratings.T_cont.toFixed(3)} N·m continuous`);
+  setCheck("speed", c.speed_ok ? "green" : "red",
+    `${out.rpm_motor.toFixed(0)} of ${c.rpm_available.toFixed(0)} RPM available`);
+  setCheck("point", c.load_fraction > 1 ? "red" : c.past_max_power ? "yellow" : "green",
+    `${(c.load_fraction * 100).toFixed(0)}% of peak torque${c.past_max_power ? " — past max-power point" : ""}`);
+  if (kvMode) {
+    setCheck("current", c.current_ok ? "green" : "red",
+      `${c.current_a.toFixed(1)} of ${ratings.I_cont.toFixed(1)} A continuous (Kt ${ratings.Kt.toFixed(4)} N·m/A)`);
+  }
+}
+
+for (const v of Object.keys(WINCH_INPUTS)) {
+  document.getElementById(`winch-lock-${v}`).addEventListener("click", () => toggleWinchInputLock(v));
+  const el = document.getElementById(`winch-in-${v}`);
+  el.addEventListener("input", () => {
+    const x = parseFloat(el.value);
+    if (x > 0) { winchState[v] = x; renderWinch(); }
+  });
+}
+for (const m of Object.keys(WINCH_METRICS)) {
+  document.getElementById(`winch-lock-out-${m}`).addEventListener("click", () => toggleWinchOutputLock(m));
+  document.getElementById(`winch-out-${m}`).addEventListener("change", solveWinchTargets);
+}
+document.getElementById("winch-in-eta").addEventListener("input", (e) => {
+  const x = parseFloat(e.target.value);
+  if (x > 0 && x <= 1) { winchState.eta = x; renderWinch(); }
+});
+for (const [id, mode] of [["winch-pill-datasheet", "datasheet"], ["winch-pill-kv", "kv"]]) {
+  document.getElementById(id).addEventListener("click", () => { winchState.motorMode = mode; renderWinch(); });
+}
+for (const [group, keys] of [["ds", Object.keys(winchState.ds)], ["kv", Object.keys(winchState.kv)]]) {
+  for (const k of keys) {
+    const el = document.getElementById(`winch-${group}-${k}`);
+    el.addEventListener("input", () => {
+      const x = parseFloat(el.value);
+      if (k === "Kt_nm_a" && el.value.trim() === "") winchState.kv.Kt_nm_a = null;
+      else if (x > 0) winchState[group][k] = x;
+      else return;
+      renderWinch();
+    });
+  }
+}
 
 const drumFormulasBtn = document.getElementById("drum-btn-show-formulas");
 const drumFormulasPanel = document.getElementById("drum-formulas-panel");

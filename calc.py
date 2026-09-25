@@ -437,3 +437,107 @@ def drum_forward(inputs: dict) -> dict:
         "capacity_m": drum_capacity(r_m, W_m, d_m, layers) if feasible else math.nan,
         "feasible": feasible,
     }
+
+
+# ---------------------------------------------------------------------------
+# Winch motor sizing
+# ---------------------------------------------------------------------------
+# Cable -> drum -> gearbox/pulley (ratio G, efficiency eta) -> motor. Torque
+# is taken hauling in (worst case: eta works against the motor).
+
+def drum_top_radius(r_m, d_m, layers):
+    """Centerline radius of the outermost layer — worst case for torque."""
+    return r_m + d_m / 2 + (layers - 1) * d_m
+
+
+def winch_forward(inputs: dict) -> dict:
+    F, v, G = inputs["F_n"], inputs["v_ms"], inputs["G"]
+    eta, r = inputs["eta"], inputs["r_eff_m"]
+    return {
+        "T_motor_nm": F * r / (G * eta),
+        "rpm_motor": G * v * 60 / (2 * math.pi * r),
+        "power_w": F * v / eta,
+    }
+
+
+_WINCH_VARS = ["F_n", "v_ms", "G"]
+_WINCH_NAMES = {
+    "F_n": "tension F", "v_ms": "line speed v", "G": "gear ratio G",
+    "T_motor_nm": "motor torque", "rpm_motor": "motor speed", "power_w": "power",
+}
+
+
+def _winch_names(keys):
+    return " + ".join(_WINCH_NAMES[k] for k in keys)
+# Every winch metric is a product of powers of F, v, G, so in log space each
+# target is a linear equation: exponents over [F_n, v_ms, G].
+_WINCH_EXPONENTS = {
+    "T_motor_nm": [1, 0, -1],
+    "rpm_motor": [0, 1, 1],
+    "power_w": [1, 1, 0],
+}
+
+
+def winch_solve(unlocked_vars, targets: dict, fixed: dict) -> dict:
+    """Solve 1 or 2 unlocked winch inputs so the same number of locked metrics
+    hit their targets. Exact (linear solve in log-values), no root-finder.
+    Raises ValueError when the combination has no unique solution."""
+    metrics = list(targets)
+    if len(unlocked_vars) != len(metrics) or not 1 <= len(metrics) <= 2:
+        raise ValueError("winch_solve: need the same number (1 or 2) of unlocked inputs and targets")
+    for m in metrics:
+        if not targets[m] > 0:
+            raise ValueError(f"winch_solve: target {m} must be positive")
+    unit = winch_forward({**fixed, "F_n": 1, "v_ms": 1, "G": 1})
+    A, b = [], []
+    for m in metrics:
+        exps = _WINCH_EXPONENTS[m]
+        rhs = math.log(targets[m]) - math.log(unit[m])
+        for i, v in enumerate(_WINCH_VARS):
+            if v not in unlocked_vars:
+                rhs -= exps[i] * math.log(fixed[v])
+        A.append([exps[_WINCH_VARS.index(v)] for v in unlocked_vars])
+        b.append(rhs)
+    if len(metrics) == 1:
+        if A[0][0] == 0:
+            raise ValueError(f"{_winch_names(metrics)} doesn't depend on {_winch_names(unlocked_vars)} — pick another combination.")
+        y = [b[0] / A[0][0]]
+    else:
+        det = A[0][0] * A[1][1] - A[0][1] * A[1][0]
+        if abs(det) < 1e-12:
+            raise ValueError(f"No unique solution for {_winch_names(metrics)} varying "
+                             f"{_winch_names(unlocked_vars)} — pick another combination.")
+        y = [(b[0] * A[1][1] - A[0][1] * b[1]) / det, (A[0][0] * b[1] - b[0] * A[1][0]) / det]
+    return {v: math.exp(y[i]) for i, v in enumerate(unlocked_vars)}
+
+
+def motor_ratings(mode, p: dict) -> dict:
+    """Motor torque/speed limits, from a datasheet or from Kv/Kt + current
+    limits. Kt defaults to the ideal-motor relation Kt = 60 / (2*pi*Kv)."""
+    if mode == "datasheet":
+        return {"T_cont": p["T_cont_nm"], "T_peak": p["T_peak_nm"],
+                "rpm_noload": p["rpm_noload"], "Kt": None, "I_cont": None}
+    if mode == "kv":
+        Kt = p.get("Kt_nm_a") or 60 / (2 * math.pi * p["Kv_rpm_v"])
+        return {"T_cont": Kt * p["I_cont_a"], "T_peak": Kt * p["I_peak_a"],
+                "rpm_noload": p["Kv_rpm_v"] * p["V_supply"], "Kt": Kt, "I_cont": p["I_cont_a"]}
+    raise ValueError(f"motor_ratings: unknown mode {mode}")
+
+
+def motor_checks(ratings: dict, T: float, rpm: float) -> dict:
+    """Checks the operating point (T, rpm) against the motor. The motor holds
+    the load with current, so T must fit under the continuous rating even at
+    0 RPM. Available speed uses the linear torque-speed line with peak torque
+    standing in for stall torque (conservative)."""
+    load_fraction = T / ratings["T_peak"]
+    rpm_available = ratings["rpm_noload"] * max(0.0, 1 - load_fraction)
+    current_a = T / ratings["Kt"] if ratings["Kt"] else None
+    return {
+        "holding_ok": T <= ratings["T_cont"],
+        "speed_ok": rpm <= rpm_available,
+        "rpm_available": rpm_available,
+        "load_fraction": load_fraction,
+        "past_max_power": load_fraction > 0.5,
+        "current_a": current_a,
+        "current_ok": None if current_a is None else current_a <= ratings["I_cont"],
+    }

@@ -430,3 +430,63 @@ def test_drum_forward_capacity_mode():
     assert f["L_m"] == pytest.approx(2 * math.pi * 30 * 2 * 0.21, rel=1e-12)
     assert f["outer_radius_m"] == pytest.approx(0.22)
     assert f["total_turns"] == 60
+
+
+# ---------------------------------------------------------------------------
+# Winch motor
+# ---------------------------------------------------------------------------
+
+_WINCH_BASE = {"F_n": 500, "v_ms": 1, "G": 10, "eta": 0.9, "r_eff_m": 0.1}
+_WINCH_SINGULAR = {("v_ms", "T_motor_nm"), ("F_n", "rpm_motor"), ("G", "power_w")}
+
+
+def test_drum_top_radius():
+    assert calc.drum_top_radius(0.1, 0.01, 3) == pytest.approx(0.125)
+
+
+def test_winch_forward_hand_worked():
+    f = calc.winch_forward(_WINCH_BASE)
+    assert f["T_motor_nm"] == pytest.approx(500 * 0.1 / 9)
+    assert f["rpm_motor"] == pytest.approx(10 * 60 / (2 * math.pi * 0.1))
+    assert f["power_w"] == pytest.approx(500 / 0.9)
+
+
+@pytest.mark.parametrize("var", ["F_n", "v_ms", "G"])
+@pytest.mark.parametrize("metric", ["T_motor_nm", "rpm_motor", "power_w"])
+def test_winch_solve_round_trip(var, metric):
+    f = calc.winch_forward(_WINCH_BASE)
+    if (var, metric) in _WINCH_SINGULAR:
+        with pytest.raises(ValueError):
+            calc.winch_solve([var], {metric: f[metric]}, _WINCH_BASE)
+    else:
+        got = calc.winch_solve([var], {metric: f[metric]}, _WINCH_BASE)
+        assert got[var] == pytest.approx(_WINCH_BASE[var], rel=1e-9)
+
+
+def test_winch_solve_2x2():
+    f = calc.winch_forward(_WINCH_BASE)
+    two = calc.winch_solve(["G", "v_ms"], {"T_motor_nm": f["T_motor_nm"], "rpm_motor": f["rpm_motor"]}, _WINCH_BASE)
+    assert two["G"] == pytest.approx(10, rel=1e-9)
+    assert two["v_ms"] == pytest.approx(1, rel=1e-9)
+
+
+def test_motor_ratings_kv_mode():
+    kv = calc.motor_ratings("kv", {"Kv_rpm_v": 100, "V_supply": 48, "I_cont_a": 20, "I_peak_a": 60})
+    assert kv["Kt"] == pytest.approx(60 / (2 * math.pi * 100))
+    assert kv["T_cont"] == pytest.approx(kv["Kt"] * 20)
+    assert kv["rpm_noload"] == pytest.approx(4800)
+    given = calc.motor_ratings("kv", {"Kv_rpm_v": 100, "Kt_nm_a": 0.2, "V_supply": 48,
+                                      "I_cont_a": 20, "I_peak_a": 60})
+    assert given["Kt"] == 0.2
+
+
+def test_motor_checks_thresholds():
+    ds = calc.motor_ratings("datasheet", {"T_cont_nm": 1, "T_peak_nm": 3, "rpm_noload": 3000})
+    assert calc.motor_checks(ds, 1.0, 0)["holding_ok"]
+    assert not calc.motor_checks(ds, 1.01, 0)["holding_ok"]
+    assert calc.motor_checks(ds, 1.5, 0)["rpm_available"] == pytest.approx(1500)
+    assert calc.motor_checks(ds, 1.5, 1500)["speed_ok"]
+    assert not calc.motor_checks(ds, 1.5, 1501)["speed_ok"]
+    assert not calc.motor_checks(ds, 1.5, 0)["past_max_power"]
+    assert calc.motor_checks(ds, 1.51, 0)["past_max_power"]
+    assert calc.motor_checks(ds, 1, 0)["current_a"] is None
