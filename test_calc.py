@@ -416,6 +416,15 @@ def test_drum_infeasible():
     assert not calc.drum_solve_radius(10, 0.01, 1, 0.005)["feasible"]
 
 
+@pytest.mark.parametrize("L, d, N", [(100, 0.01, 1), (250, 0.008, 3), (0.01, 0.01, 1)])
+def test_drum_square_diameter_equals_length(L, d, N):
+    sq = calc.drum_forward({"solve": "square", "L_m": L, "d_m": d, "layers": N})
+    assert 2 * sq["r_m"] == pytest.approx(sq["W_m"], rel=1e-12)
+    assert sq["capacity_m"] >= L
+    n = sq["turns_per_layer"]
+    assert n == 1 or math.pi * N * d * (n - 1) * (n - 1 + N) < L
+
+
 def test_drum_forward_capacity_mode():
     f = calc.drum_forward({"solve": "L", "r_m": 0.2, "W_m": 0.3, "d_m": 0.01, "layers": 2})
     assert f["L_m"] == pytest.approx(2 * math.pi * 30 * 2 * 0.21, rel=1e-12)

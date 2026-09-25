@@ -397,10 +397,18 @@ def drum_solve_length(L_m, d_m, layers, r_m):
     return {"W_m": n * d_m, "turns_per_layer": n}
 
 
+def drum_solve_square(L_m, d_m, layers):
+    """Drum diameter forced equal to drum length (2r = W = n*d). Capacity is
+    then pi*N*d*n*(n + N), so take the smallest whole n that holds L_m."""
+    k = L_m / (math.pi * layers * d_m)
+    n = max(1, math.ceil((-layers + math.sqrt(layers ** 2 + 4 * k)) / 2 - _DRUM_EPS))
+    return {"r_m": n * d_m / 2, "W_m": n * d_m, "turns_per_layer": n}
+
+
 def drum_forward(inputs: dict) -> dict:
     """Single entry point for the drum tab, mirroring forward_solve's role.
     `solve` names the unknown: "r" (W given), "W" (r given), or "L" (r and W
-    given -> cable capacity)."""
+    given -> cable capacity), or "square" (diameter = length)."""
     d_m, layers, solve = inputs["d_m"], inputs["layers"], inputs["solve"]
     L_m, r_m, W_m = inputs.get("L_m"), inputs.get("r_m"), inputs.get("W_m")
     feasible = True
@@ -410,6 +418,9 @@ def drum_forward(inputs: dict) -> dict:
     elif solve == "W":
         W_m = drum_solve_length(L_m, d_m, layers, r_m)["W_m"]
         feasible = r_m > 0
+    elif solve == "square":
+        res = drum_solve_square(L_m, d_m, layers)
+        r_m, W_m = res["r_m"], res["W_m"]
     elif solve == "L":
         L_m = drum_capacity(r_m, W_m, d_m, layers)
         feasible = r_m > 0 and drum_turns_per_layer(W_m, d_m) >= 1

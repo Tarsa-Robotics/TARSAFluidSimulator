@@ -124,6 +124,18 @@
   .tab-btn:hover { color: var(--ink); }
   .tab-btn[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--signal); }
 
+  .pill-toggle { display: inline-flex; border: 1px solid var(--n-300); border-radius: var(--r-pill); padding: 2px; }
+  .pill-toggle button {
+    background: none; border: 0; border-radius: var(--r-pill); padding: 4px 14px;
+    font: inherit; font-size: var(--fs-sm); color: var(--fg-2); cursor: pointer;
+    transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .pill-toggle button:hover { color: var(--ink); }
+  .pill-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--fg-on-ink); }
+  .drum-out-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+  .check-row { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); margin: var(--sp-3) 0 var(--sp-4); cursor: pointer; }
+  .check-row input { accent-color: var(--signal); margin: 0; }
+
   .formula-block { margin-bottom: var(--sp-6); }
   .formula-block .step-no {
     font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--track-eyebrow);
@@ -650,16 +662,25 @@
   </div>
 
   <div>
-    <h3 class="t-h4">Drum</h3>
+    <div class="drum-out-head">
+      <h3 class="t-h4">Drum</h3>
+      <div class="pill-toggle" role="group" aria-label="Show drum size as">
+        <button type="button" id="drum-pill-radius" aria-pressed="true">Radius</button>
+        <button type="button" id="drum-pill-dia" aria-pressed="false">Diameter</button>
+      </div>
+    </div>
+    <label class="check-row">
+      <input type="checkbox" id="drum-square">
+      <span data-tooltip="Forces drum diameter = drum length and solves both from the cable.">Zoltan's checkbox, I cant do math</span>
+    </label>
 
     <div class="lockrow">
       <button class="lock-btn" id="drum-lock-out-r"><span class="material-symbols-sharp">lock_open</span></button>
       <div class="field-col">
-        <label class="field-label" for="drum-out-r_mm" data-tooltip="r — radius of the bare drum barrel the first layer wraps on.">Drum radius r (mm)<span class="dep-dot" data-tooltip="Depends on: L, d, N, W"></span></label>
+        <label class="field-label" for="drum-out-r_mm" id="drum-out-r-label" data-tooltip="Size of the bare drum barrel the first layer wraps on."><span id="drum-out-r-text">Drum radius r (mm)</span><span class="dep-dot" data-tooltip="Depends on: L, d, N, W"></span></label>
         <input class="field" type="number" id="drum-out-r_mm" step="1">
       </div>
     </div>
-    <p class="t-caption" id="drum-out-diameter" style="color:var(--fg-2);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))"></p>
 
     <div class="lockrow">
       <button class="lock-btn" id="drum-lock-out-W"><span class="material-symbols-sharp">lock_open</span></button>
@@ -672,8 +693,7 @@
     <details class="section-drop" open>
       <summary class="t-h4">Winding reference</summary>
       <table class="dp-table">
-        <tr><td>Outer radius with cable (min. flange)<span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer"></td></tr>
-        <tr><td>Outer diameter with cable<span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer-dia"></td></tr>
+        <tr><td><span id="drum-stat-outer-label">Outer radius of wound cable</span><span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer"></td></tr>
         <tr><td>Turns per layer<span class="dep-dot" data-tooltip="Depends on: W, d"></span></td><td id="drum-stat-turns"></td></tr>
         <tr><td>Total turns<span class="dep-dot" data-tooltip="Depends on: W, d, N"></span></td><td id="drum-stat-total-turns"></td></tr>
         <tr><td>Drum capacity<span class="dep-dot" data-tooltip="Depends on: r, W, d, N"></span></td><td id="drum-stat-capacity"></td></tr>
@@ -730,7 +750,14 @@
     <div class="step-no">05</div>
     <h5>Both locked &rarr; solve cable length</h5>
     <div class="formula-eq">L = C</div>
-    <p class="formula-note">Outer radius r + N&middot;d is the smallest flange radius that clears the top layer.</p>
+    <p class="formula-note">Outer radius r + N&middot;d is where the top layer ends. A real flange needs clearance above that.</p>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">06</div>
+    <h5>Zoltan's checkbox &mdash; diameter = length</h5>
+    <div class="formula-eq">2r = W = n&middot;d &nbsp;&rArr;&nbsp; C = π &middot; N &middot; d &middot; n &middot; (n + N)</div>
+    <p class="formula-note">n is the smallest whole number of turns with C &ge; L; both r and W follow from it.</p>
   </div>
 </section>
 </section>
@@ -1360,10 +1387,16 @@ const drumState = {
   r_mm: 0, W_mm: 500.0,
   L_locked: true,
   target: "W", // most recently locked output; the only target while L is locked
+  showDia: false, // pill: radius or diameter for the r field and outer size
+  square: false, // Zoltan's checkbox: drum diameter = drum length
   error: null,
 };
 
+// r is stored as a radius; the pill only changes what the field shows/takes.
+const drumSizeFactor = () => (drumState.showDia ? 2 : 1);
+
 function drumSolveKey() {
+  if (drumState.square) return "square";
   if (!drumState.L_locked) return "L";
   return drumState.target === "W" ? "r" : "W";
 }
@@ -1389,39 +1422,54 @@ function renderDrum() {
   const solveKey = drumSolveKey();
 
   const lBtn = document.getElementById("drum-lock-L");
-  lBtn.classList.toggle("active", drumState.L_locked);
-  lBtn.querySelector(".material-symbols-sharp").textContent = drumState.L_locked ? "lock" : "lock_open";
-  lBtn.title = drumState.L_locked
+  const lLocked = drumState.L_locked || drumState.square;
+  lBtn.classList.toggle("active", lLocked);
+  lBtn.disabled = drumState.square;
+  lBtn.querySelector(".material-symbols-sharp").textContent = lLocked ? "lock" : "lock_open";
+  lBtn.title = drumState.square
+    ? "Fixed while Zoltan's checkbox is on."
+    : drumState.L_locked
     ? "Locked — fixed value. Click to unlock and solve how much cable the drum holds."
     : "Unlocked — being solved for. Click to lock it again.";
   const lInput = document.getElementById("drum-in-L_m");
-  lInput.disabled = !drumState.L_locked;
-  lInput.value = drumState.L_locked ? drumState.L_m : drumState.L_m.toFixed(2);
+  lInput.disabled = !lLocked;
+  lInput.value = lLocked ? drumState.L_m : drumState.L_m.toFixed(2);
+
+  document.getElementById("drum-pill-radius").setAttribute("aria-pressed", String(!drumState.showDia));
+  document.getElementById("drum-pill-dia").setAttribute("aria-pressed", String(drumState.showDia));
+  document.getElementById("drum-square").checked = drumState.square;
+  document.getElementById("drum-out-r-text").textContent =
+    drumState.showDia ? "Drum diameter D (mm)" : "Drum radius r (mm)";
   document.getElementById("drum-in-d_mm").value = drumState.d_mm;
   document.getElementById("drum-in-layers").value = drumState.layers;
 
   for (const [key, meta] of Object.entries(DRUM_OUTPUTS)) {
-    const isTarget = key !== solveKey;
+    const isTarget = solveKey !== "square" && key !== solveKey;
     const btn = document.getElementById(`drum-lock-out-${key}`);
     btn.classList.toggle("active", isTarget);
     btn.querySelector(".material-symbols-sharp").textContent = isTarget ? "lock" : "lock_open";
-    btn.disabled = !drumState.L_locked;
-    btn.title = !drumState.L_locked
+    btn.disabled = drumState.square || !drumState.L_locked;
+    btn.title = drumState.square
+      ? "Solved from the cable while Zoltan's checkbox is on."
+      : !drumState.L_locked
       ? "Both outputs are targets while cable length is unlocked."
       : isTarget
       ? "Active target — editable, drives the solve."
       : "Click to make this the target instead.";
     const input = document.getElementById(meta.elId);
     input.disabled = !isTarget;
-    const v = drumState[meta.stateKey];
+    const v = drumState[meta.stateKey] * (key === "r" ? drumSizeFactor() : 1);
     // Leave an active target's typed value alone; only format solved values.
     if (!isTarget) input.value = Number.isFinite(v) && res.feasible ? v.toFixed(1) : "";
     else if (document.activeElement !== input) input.value = +v.toFixed(3);
   }
 
   const statusEl = document.getElementById("drum-status");
-  statusEl.innerHTML = drumState.L_locked
-    ? `Solving for <b>${DRUM_OUTPUTS[solveKey].label}</b> — edit the locked target to update it.`
+  const rLabel = drumState.showDia ? "Drum diameter D (mm)" : DRUM_OUTPUTS.r.label;
+  statusEl.innerHTML = drumState.square
+    ? "Diameter = length — both solved from the cable."
+    : drumState.L_locked
+    ? `Solving for <b>${solveKey === "r" ? rLabel : DRUM_OUTPUTS[solveKey].label}</b> — edit the locked target to update it.`
     : "Solving for <b>Cable length L (m)</b> — edit drum radius or length to update it.";
 
   const errEl = document.getElementById("drum-error");
@@ -1435,10 +1483,9 @@ function renderDrum() {
   errEl.textContent = err || "";
 
   const mm = (m) => (res.feasible ? `${mToMm(m).toFixed(1)} mm` : "—");
-  document.getElementById("drum-stat-outer").textContent = mm(res.outer_radius_m);
-  document.getElementById("drum-stat-outer-dia").textContent = mm(2 * res.outer_radius_m);
-  document.getElementById("drum-out-diameter").textContent =
-    res.feasible ? `= ${(2 * drumState.r_mm).toFixed(1)} mm diameter` : "";
+  document.getElementById("drum-stat-outer-label").textContent =
+    drumState.showDia ? "Outer diameter of wound cable" : "Outer radius of wound cable";
+  document.getElementById("drum-stat-outer").textContent = mm(res.outer_radius_m * drumSizeFactor());
   document.getElementById("drum-stat-turns").textContent = res.turns_per_layer;
   document.getElementById("drum-stat-total-turns").textContent = res.total_turns;
   document.getElementById("drum-stat-capacity").textContent =
@@ -1462,12 +1509,24 @@ for (const key of Object.keys(DRUM_OUTPUTS)) {
     if (Number.isNaN(v) || v <= 0) {
       drumState.error = "Enter a positive number.";
     } else {
-      drumState[DRUM_OUTPUTS[key].stateKey] = v;
+      drumState[DRUM_OUTPUTS[key].stateKey] = key === "r" ? v / drumSizeFactor() : v;
       drumState.error = null;
     }
     renderDrum();
   });
 }
+
+for (const [id, showDia] of [["drum-pill-radius", false], ["drum-pill-dia", true]]) {
+  document.getElementById(id).addEventListener("click", () => {
+    drumState.showDia = showDia;
+    renderDrum();
+  });
+}
+document.getElementById("drum-square").addEventListener("change", (e) => {
+  drumState.square = e.target.checked;
+  drumState.error = null;
+  renderDrum();
+});
 
 function bindDrumInput(elId, stateKey, parse, isValid) {
   const el = document.getElementById(elId);

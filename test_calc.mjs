@@ -393,6 +393,16 @@ const BASE_2D_INPUTS = {
   approx(f.L_m, 2 * Math.PI * 30 * 2 * (0.2 + 0.01), 1e-12, "drum.forward_L");
   approx(f.outer_radius_m, 0.22, 1e-12, "drum.forward_outer_radius");
   check(f.total_turns === 60, "drum.forward_total_turns");
+
+  // Square drum (D = W): diameter equals length, capacity holds L, and one
+  // fewer turn would not.
+  for (const [L, d, N] of [[100, 0.01, 1], [250, 0.008, 3], [0.01, 0.01, 1]]) {
+    const sq = calc.drumForward({ solve: "square", L_m: L, d_m: d, layers: N });
+    approx(2 * sq.r_m, sq.W_m, 1e-12, `drum.square_D_equals_W(${L})`);
+    check(sq.capacity_m >= L, `drum.square_holds_L(${L})`);
+    const n = sq.turns_per_layer;
+    check(n === 1 || Math.PI * N * d * (n - 1) * (n - 1 + N) < L, `drum.square_minimal(${L})`);
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

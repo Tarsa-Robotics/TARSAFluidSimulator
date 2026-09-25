@@ -411,9 +411,19 @@
   }
 
   /**
+   * Drum diameter forced equal to drum length (2r = W = n*d). Capacity is
+   * then pi*N*d*n*(n + N), so take the smallest whole n that holds L.
+   */
+  function drumSolveSquare(LM, dM, layers) {
+    const k = LM / (Math.PI * layers * dM);
+    const n = Math.max(1, Math.ceil((-layers + Math.sqrt(layers ** 2 + 4 * k)) / 2 - DRUM_EPS));
+    return { r_m: (n * dM) / 2, W_m: n * dM, turns_per_layer: n };
+  }
+
+  /**
    * Single entry point for the drum tab, mirroring forwardSolve's role.
    * `solve` names the unknown: "r" (W given), "W" (r given), or "L"
-   * (r and W given -> cable capacity).
+   * (r and W given -> cable capacity), or "square" (diameter = length).
    */
   function drumForward(inputs) {
     const { d_m: dM, layers, solve } = inputs;
@@ -426,6 +436,8 @@
     } else if (solve === "W") {
       WM = drumSolveLength(LM, dM, layers, rM).W_m;
       feasible = rM > 0;
+    } else if (solve === "square") {
+      ({ r_m: rM, W_m: WM } = drumSolveSquare(LM, dM, layers));
     } else if (solve === "L") {
       LM = drumCapacity(rM, WM, dM, layers);
       feasible = rM > 0 && drumTurnsPerLayer(WM, dM) >= 1;
@@ -478,6 +490,7 @@
     drumCapacity,
     drumSolveRadius,
     drumSolveLength,
+    drumSolveSquare,
     drumForward,
   };
 
