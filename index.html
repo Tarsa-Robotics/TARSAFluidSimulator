@@ -659,6 +659,7 @@
         <input class="field" type="number" id="drum-out-r_mm" step="1">
       </div>
     </div>
+    <p class="t-caption" id="drum-out-diameter" style="color:var(--fg-2);margin:-6px 0 var(--sp-4) calc(2.6rem + var(--sp-2))"></p>
 
     <div class="lockrow">
       <button class="lock-btn" id="drum-lock-out-W"><span class="material-symbols-sharp">lock_open</span></button>
@@ -672,6 +673,7 @@
       <summary class="t-h4">Winding reference</summary>
       <table class="dp-table">
         <tr><td>Outer radius with cable (min. flange)<span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer"></td></tr>
+        <tr><td>Outer diameter with cable<span class="dep-dot" data-tooltip="Depends on: r, d, N"></span></td><td id="drum-stat-outer-dia"></td></tr>
         <tr><td>Turns per layer<span class="dep-dot" data-tooltip="Depends on: W, d"></span></td><td id="drum-stat-turns"></td></tr>
         <tr><td>Total turns<span class="dep-dot" data-tooltip="Depends on: W, d, N"></span></td><td id="drum-stat-total-turns"></td></tr>
         <tr><td>Drum capacity<span class="dep-dot" data-tooltip="Depends on: r, W, d, N"></span></td><td id="drum-stat-capacity"></td></tr>
@@ -1434,6 +1436,9 @@ function renderDrum() {
 
   const mm = (m) => (res.feasible ? `${mToMm(m).toFixed(1)} mm` : "—");
   document.getElementById("drum-stat-outer").textContent = mm(res.outer_radius_m);
+  document.getElementById("drum-stat-outer-dia").textContent = mm(2 * res.outer_radius_m);
+  document.getElementById("drum-out-diameter").textContent =
+    res.feasible ? `= ${(2 * drumState.r_mm).toFixed(1)} mm diameter` : "";
   document.getElementById("drum-stat-turns").textContent = res.turns_per_layer;
   document.getElementById("drum-stat-total-turns").textContent = res.total_turns;
   document.getElementById("drum-stat-capacity").textContent =
