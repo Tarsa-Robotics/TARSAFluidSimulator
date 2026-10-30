@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>CDPR Motion Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: drafting-sheet frame (left) with transport underneath, controls (right); plots and live readout on the second row. */
+:root{
+  --bg:#E8EDF1; --panel:#F6F8FA; --field:#FFFFFF; --ink:#101B26; --muted:#566676; --line:#C4CED7; --grid:#DCE3E9;
+  --w1:#D55E00; --w2:#0072B2; --w3:#009E73; --w4:#B8548F; --focus:#1B6FD6; --bad:#B3261E;
+  --font-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-num:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D141B; --panel:#151F29; --field:#0F1A23; --ink:#E7EEF4; --muted:#92A3B2; --line:#2B3947; --grid:#1D2934;
+    --w1:#FF8A3D; --w2:#56B4E9; --w3:#2FD0A0; --w4:#E58FC0; --focus:#6FA8FF; --bad:#FF8A80; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D141B; --panel:#151F29; --field:#0F1A23; --ink:#E7EEF4; --muted:#92A3B2; --line:#2B3947; --grid:#1D2934;
+  --w1:#FF8A3D; --w2:#56B4E9; --w3:#2FD0A0; --w4:#E58FC0; --focus:#6FA8FF; --bad:#FF8A80; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.45;
+  padding-block:18px 36px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-size:clamp(22px,3vw,28px);font-weight:600;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+.lede{margin:0 0 16px;color:var(--muted);max-width:68ch}
+h2{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;min-width:0}
+.grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"stage" "controls" "readout" "plots"}
+.stage{grid-area:stage}.controls{grid-area:controls}.readout{grid-area:readout}.plotsPanel{grid-area:plots}
+@media (min-width:1000px){
+  .grid{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"stage controls" "plots readout"}
+}
+@media (max-width:520px){.panel{padding:10px}}
+
+#stageWrap{width:100%}
+#stage{display:block;cursor:crosshair;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.frame{fill:var(--field);stroke:var(--ink);stroke-width:1.5}
+.gl{stroke:var(--grid);stroke-width:1}
+.tk{fill:var(--muted);font-family:var(--font-num);font-size:10.5px}
+.cap{fill:var(--muted);font-family:var(--font-num);font-size:11px;text-anchor:middle}
+.pathL{stroke:var(--muted);stroke-width:1.25;stroke-dasharray:5 4;fill:none}
+.progL{stroke:var(--ink);stroke-width:1.5;fill:none}
+.c0{--c:var(--w1)}.c1{--c:var(--w2)}.c2{--c:var(--w3)}.c3{--c:var(--w4)}.cink{--c:var(--ink)}
+.cable{stroke:var(--c);stroke-width:2;fill:none;stroke-linecap:round}
+.drum{fill:var(--c)}
+.spoke{stroke:var(--field);stroke-width:2;stroke-linecap:round}
+.wlab{fill:var(--c);font-family:var(--font-num);font-size:11px;font-weight:500;paint-order:stroke;stroke:var(--field);stroke-width:3;stroke-linejoin:round}
+.robot{fill:var(--ink);stroke:var(--field);stroke-width:2}
+.robotDot{fill:var(--field)}
+.tgtC{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 2.5}
+.tgtX{stroke:var(--ink);stroke-width:1.5}
+.qC{fill:var(--field);stroke:var(--muted);stroke-width:1.25}
+.qT{fill:var(--muted);font-family:var(--font-num);font-size:9.5px;text-anchor:middle}
+.arrV{stroke:var(--ink);stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.arrA{stroke:var(--ink);stroke-width:2;fill:none;stroke-dasharray:4 3;stroke-linecap:round;stroke-linejoin:round}
+
+.transport{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-top:10px}
+.btn{font:inherit;font-weight:600;padding:7px 12px;border-radius:4px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;min-width:0}
+.btn.primary{background:var(--ink);color:var(--bg);min-width:84px}
+.btn:hover{opacity:.88}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.scrub{flex:1 1 150px;min-width:110px;accent-color:var(--ink)}
+.tnum{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+.rate{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+select{font:inherit;font-size:12px;background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.status{margin:10px 0 0;color:var(--muted);min-height:1.45em}
+.keys{display:flex;gap:16px;margin-top:6px;font-size:12px;color:var(--muted)}
+.keys i{display:inline-block;width:22px;vertical-align:middle;margin-right:6px}
+.kv{border-top:2.5px solid var(--ink)}.ka{border-top:2px dashed var(--ink)}
+
+.controls section+section{margin-top:18px}
+.seg{position:relative;display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{padding:8px 10px;text-align:center;cursor:pointer;font-weight:600}
+.seg input:checked+label{background:var(--ink);color:var(--bg)}
+.seg input:focus-visible+label{outline:2px solid var(--focus);outline-offset:-3px}
+.hint{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f>span{font-size:12px;color:var(--muted)}
+.inp{display:flex;align-items:center;border:1px solid var(--line);background:var(--field);border-radius:4px;padding-right:8px;min-width:0}
+.inp input{flex:1;min-width:0;width:100%;border:0;background:transparent;color:var(--ink);font-family:var(--font-num);font-size:13px;padding:7px 8px}
+.inp input:focus-visible{outline:none}
+.inp:focus-within{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.inp i{font-style:normal;color:var(--muted);font-size:11.5px;font-family:var(--font-num)}
+.inp.bad{border-color:var(--bad)}
+.goRow{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer}
+.chk input{accent-color:var(--ink);width:16px;height:16px}
+
+.kvl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 12px}
+.kvl dt{color:var(--muted);font-size:12.5px}
+.kvl dd{margin:0;text-align:right;font-family:var(--font-num);font-size:12.5px;font-variant-numeric:tabular-nums}
+table.wt{width:100%;border-collapse:collapse;font-family:var(--font-num);font-size:12px;font-variant-numeric:tabular-nums}
+.wt th{font-weight:500;color:var(--muted);text-align:right;padding:2px 0 4px;font-family:var(--font-ui);font-size:11px}
+.wt td{padding:5px 0;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+.wt th:first-child,.wt td:first-child{text-align:left}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:-1px}
+.note{font-size:11.5px;color:var(--muted);margin:6px 0 0}
+.readout h2:not(:first-child){margin-top:18px}
+.pill{display:inline-block;margin-left:6px;padding:0 6px;border-radius:9px;border:1px solid var(--ink);font-family:var(--font-ui);font-size:10.5px;font-weight:600;line-height:16px;vertical-align:1px}
+
+.plotgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px 14px}
+.plot{min-width:0}
+.ph{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px;margin-bottom:2px}
+.ph h3{font-size:13px;font-weight:600;margin:0}
+.ph .u{font-size:11.5px;color:var(--muted)}
+.legend{display:flex;gap:10px;font-size:11.5px;color:var(--muted)}
+.pbody svg{display:block;width:100%;height:auto}
+.pg{stroke:var(--grid);stroke-width:1}
+.pz{stroke:var(--muted);stroke-width:1}
+.ser{fill:none;stroke:var(--c);stroke-width:1.75;stroke-linejoin:round}
+.lim{stroke:var(--ink);stroke-width:1.25;stroke-dasharray:5 4;opacity:.75}
+.cur{stroke:var(--ink);stroke-width:1;opacity:.6}
+.dot{fill:var(--c);stroke:var(--field);stroke-width:1.5}
+
+.viewbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 8px;margin-bottom:8px}
+.btn.sq{padding:3px 0;width:30px;font-size:17px;line-height:1.2}
+.btn.sm{padding:4px 10px}
+.vhint{font-size:12px;color:var(--muted);margin-left:auto}
+.cmuted{--c:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>CDPR Motion Sandbox</h1>
+  <p class="lede">A rough 2D model of a cable-driven parallel robot: one platform on four cables, one winch per corner. Click inside the frame to send the platform there, then read off what the platform and each winch had to do.</p>
+</header>
+
+<main class="grid">
+  <section class="panel stage" aria-label="Workspace">
+    <div class="viewbar">
+      <span class="tnum">Zoom</span>
+      <button id="btnZoomOut" class="btn sq" type="button" aria-label="Zoom out">−</button>
+      <button id="btnZoomIn" class="btn sq" type="button" aria-label="Zoom in">+</button>
+      <button id="btnFit" class="btn sm" type="button">Fit</button>
+      <span id="zoomRead" class="tnum">1.0×</span>
+      <span class="vhint">Scroll or pinch to zoom, drag to pan, click to send</span>
+    </div>
+    <div id="stageWrap"><svg id="stage" role="img" aria-label="Workspace frame with four cables. Click to move the platform; or use the target fields."></svg></div>
+    <div class="transport">
+      <button id="btnPlay" class="btn primary" type="button">Play</button>
+      <button id="btnCenter" class="btn" type="button">Reset to center</button>
+      <input id="scrub" class="scrub" type="range" min="0" max="1000" value="0" aria-label="Move progress">
+      <span id="tRead" class="tnum">0.00 / 0.00 s</span>
+      <label class="rate">Playback
+        <select id="rate"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      </label>
+    </div>
+    <p class="status" id="status" aria-live="polite"></p>
+    <div class="keys" id="keys"><span><i class="kv"></i>velocity</span><span><i class="ka"></i>acceleration</span></div>
+  </section>
+
+  <section class="panel controls" aria-label="Controls">
+    <section>
+      <h2>Limits apply to</h2>
+      <div class="seg" role="radiogroup" aria-label="Limit mode">
+        <input type="radio" name="mode" id="modeCart" value="cart" checked><label for="modeCart">Platform</label>
+        <input type="radio" name="mode" id="modeWinch" value="winch"><label for="modeWinch">Winches</label>
+      </div>
+      <p class="hint" id="modeHint"></p>
+      <div class="fields" id="cartFields">
+        <label class="f"><span>Max speed</span><span class="inp"><input id="cv" type="number" inputmode="decimal" step="0.1" value="1"><i>m/s</i></span></label>
+        <label class="f"><span>Max acceleration</span><span class="inp"><input id="ca" type="number" inputmode="decimal" step="0.1" value="2"><i>m/s²</i></span></label>
+      </div>
+      <div class="fields" id="winchFields" hidden>
+        <label class="f"><span>Max cable speed</span><span class="inp"><input id="wv" type="number" inputmode="decimal" step="0.1" value="0.5"><i>m/s</i></span></label>
+        <label class="f"><span>Max cable accel.</span><span class="inp"><input id="wa" type="number" inputmode="decimal" step="0.1" value="1.5"><i>m/s²</i></span></label>
+        <label class="f"><span>Drum diameter</span><span class="inp"><input id="wd" type="number" inputmode="decimal" step="1" value="50"><i>mm</i></span></label>
+      </div>
+    </section>
+    <section>
+      <h2>Trajectory</h2>
+      <div class="seg" role="radiogroup" aria-label="Trajectory type">
+        <input type="radio" name="traj" id="trajTrap" value="trap" checked><label for="trajTrap">Trapezoidal</label>
+        <input type="radio" name="traj" id="trajQuin" value="quintic"><label for="trajQuin">Quintic</label>
+      </div>
+      <p class="hint" id="trajHint"></p>
+      <label class="chk" id="cruiseRow" style="margin-top:10px"><input id="cruise" type="checkbox" checked>Cruise at max speed when it helps</label>
+    </section>
+    <section>
+      <h2>Frame</h2>
+      <div class="fields" style="margin-top:0">
+        <label class="f"><span>Width</span><span class="inp"><input id="fw" type="number" inputmode="decimal" step="0.1" value="4"><i>m</i></span></label>
+        <label class="f"><span>Height</span><span class="inp"><input id="fh" type="number" inputmode="decimal" step="0.1" value="3"><i>m</i></span></label>
+      </div>
+    </section>
+    <section>
+      <h2>Send platform to</h2>
+      <div class="goRow">
+        <label class="f"><span>x</span><span class="inp"><input id="tx" type="number" inputmode="decimal" step="0.1"><i>m</i></span></label>
+        <label class="f"><span>y</span><span class="inp"><input id="ty" type="number" inputmode="decimal" step="0.1"><i>m</i></span></label>
+        <button id="btnGo" class="btn" type="button">Go</button>
+      </div>
+      <p class="hint">Origin is the bottom-left corner.</p>
+    </section>
+    <section>
+      <h2>Queued points</h2>
+      <label class="chk"><input id="blend" type="checkbox" checked>Flow through them on a Bezier curve</label>
+      <div class="fields" id="handleField">
+        <label class="f"><span>Curve handle</span><span class="inp"><input id="handle" type="number" inputmode="decimal" step="0.05" value="0.4"><i>× leg</i></span></label>
+      </div>
+      <p class="hint" id="blendHint"></p>
+    </section>
+    <section>
+      <label class="chk"><input id="vec" type="checkbox" checked>Show velocity and acceleration arrows</label>
+    </section>
+  </section>
+
+  <section class="panel plotsPanel" aria-label="Profiles over time">
+    <h2>Profiles over time</h2>
+    <div class="plotgrid">
+      <div class="plot" id="pSpeed"><div class="ph"><h3>Platform speed</h3><span class="u"></span></div><div class="pbody"></div></div>
+      <div class="plot" id="pAcc"><div class="ph"><h3>Platform acceleration</h3><span class="u"></span></div><div class="pbody"></div></div>
+      <div class="plot" id="pCv"><div class="ph"><h3>Cable speed</h3><span class="legend" id="lg1"></span></div><div class="pbody"></div></div>
+      <div class="plot" id="pCa"><div class="ph"><h3>Cable acceleration</h3><span class="legend" id="lg2"></span></div><div class="pbody"></div></div>
+    </div>
+    <p class="note" id="plotNote"></p>
+  </section>
+
+  <section class="panel readout" aria-label="Readout">
+    <h2>Right now</h2>
+    <dl class="kvl">
+      <dt>Position</dt><dd id="rPos">–</dd>
+      <dt>Speed</dt><dd id="rSpd">–</dd>
+      <dt>Acceleration (along path)</dt><dd id="rAcc">–</dd>
+      <dt id="rowAccN" hidden>Acceleration (sideways)</dt><dd id="rAccN" hidden>–</dd>
+    </dl>
+    <table class="wt">
+      <thead><tr><th>Winch</th><th>Cable m</th><th>m/s</th><th>m/s²</th><th>rpm</th></tr></thead>
+      <tbody id="wRows"></tbody>
+    </table>
+    <p class="note">Cable rate: + pays cable out, − reels it in. rpm uses the drum diameter from the winch limits.</p>
+    <h2>This move</h2>
+    <dl class="kvl">
+      <dt>Path length</dt><dd id="sDist">–</dd>
+      <dt>Duration</dt><dd id="sDur">–</dd>
+      <dt id="rowCruise" hidden>Time at max speed</dt><dd id="valCruise" hidden>–</dd>
+      <dt>Peak platform speed</dt><dd id="sV">–</dd>
+      <dt>Peak platform accel.</dt><dd id="sA">–</dd>
+      <dt>Peak cable speed</dt><dd id="sCV">–</dd>
+      <dt>Peak cable accel.</dt><dd id="sCA">–</dd>
+    </dl>
+  </section>
+</main>
+</div>
+<script>
+(function(){'use strict';
+//<core>
+const PI=Math.PI;
+// Winch order: W1 top-left, W2 top-right, W3 bottom-right, W4 bottom-left. Origin bottom-left, y up.
+function corners(W,H){return [[0,H],[W,H],[W,0],[0,0]];}
+
+// A path is either a straight line (plan.p0, plan.d) or a function plan.path(s) -> {x,y,dx,dy,ddx,ddy}, s in [0,1].
+function geomOf(p0,p1,g){
+  if(g) return {p0,p1,D:g.D,path:g.path,pts:g.pts,knots:g.knots};
+  const dx=p1[0]-p0[0],dy=p1[1]-p0[1];
+  return {p0,p1,d:[dx,dy],D:Math.hypot(dx,dy),pts:[p0,p1]};
+}
+
+// Platform and cable kinematics at path position s, path speed sd, path acceleration sdd (all per normalised s).
+// Cable i: rate g*sd, accel h*sd^2 + g*sdd. Platform: speed |P'|*sd, accel vector P''*sd^2 + P'*sdd.
+function kin(plan,s,sd,sdd){
+  let x,y,px,py,pxx=0,pyy=0;
+  if(plan.path){const P=plan.path(s);x=P.x;y=P.y;px=P.dx;py=P.dy;pxx=P.ddx;pyy=P.ddy;}
+  else{x=plan.p0[0]+plan.d[0]*s;y=plan.p0[1]+plan.d[1]*s;px=plan.d[0];py=plan.d[1];}
+  const C=corners(plan.W,plan.H), L=[],Ld=[],Ldd=[], pp=px*px+py*py, ps=Math.sqrt(pp)||1e-9;
+  for(let i=0;i<4;i++){
+    const rx=x-C[i][0], ry=y-C[i][1], len=Math.max(Math.hypot(rx,ry),1e-6);
+    const g=(rx*px+ry*py)/len, h=(pp+rx*pxx+ry*pyy-g*g)/len;
+    L.push(len); Ld.push(g*sd); Ldd.push(h*sd*sd+g*sdd);
+  }
+  const ax=pxx*sd*sd+px*sdd, ay=pyy*sd*sd+py*sdd, tx=px/ps, ty=py/ps;
+  return {x,y,speed:ps*sd,accT:ax*tx+ay*ty,accN:-ax*ty+ay*tx,acc:Math.hypot(ax,ay),ax,ay,tx,ty,px,py,pxx,pyy,L,Ld,Ldd};
+}
+
+// Time-optimal speed profile along a fixed path s in [0,1], starting at squared speed u0 (default rest), ending at rest.
+// Each axis i has rate g_i*sd and accel h_i*sd^2 + g_i*sdd; every axis is held to |rate|<=vlim, |accel|<=alim*alims[i].
+function computeProfile(gs,hs,vlim,alim0,u0,alims){
+  const N=gs.length-1, ds=1/N, EPS=1e-9, nA=gs[0].length;
+  const LO0=[],LO1=[],HI0=[],HI1=[]; const mvc=new Float64Array(N+1);
+  for(let k=0;k<=N;k++){
+    let umax=1e12; const lo0=[],lo1=[],hi0=[],hi1=[];
+    for(let i=0;i<nA;i++){
+      const g=gs[k][i], h=hs[k][i], ag=Math.abs(g), alim=alims?alim0*alims[i]:alim0;
+      if(ag>EPS) umax=Math.min(umax,(vlim/ag)*(vlim/ag));
+      if(ag<1e-7){ if(Math.abs(h)>EPS) umax=Math.min(umax,alim/Math.abs(h)); continue; }
+      if(g>0){lo0.push(-alim/g);hi0.push(alim/g);} else {lo0.push(alim/g);hi0.push(-alim/g);}
+      lo1.push(-h/g); hi1.push(-h/g);
+    }
+    for(let i=0;i<lo0.length;i++)for(let j=0;j<hi0.length;j++){
+      const slope=lo1[i]-hi1[j];
+      if(slope>EPS) umax=Math.min(umax,(hi0[j]-lo0[i])/slope);
+    }
+    mvc[k]=umax; LO0.push(lo0);LO1.push(lo1);HI0.push(hi0);HI1.push(hi1);
+  }
+  const maxAcc=(k,u)=>{let a=Infinity;const c0=HI0[k],c1=HI1[k];for(let j=0;j<c0.length;j++){const v=c0[j]+c1[j]*u;if(v<a)a=v;}return a;};
+  const minAcc=(k,u)=>{let a=-Infinity;const c0=LO0[k],c1=LO1[k];for(let j=0;j<c0.length;j++){const v=c0[j]+c1[j]*u;if(v>a)a=v;}return a;};
+  const uf=new Float64Array(N+1);
+  uf[0]=Math.min(u0||0,mvc[0]);
+  for(let k=0;k<N;k++){
+    const a=maxAcc(k,uf[k]);
+    let un=uf[k]+2*a*ds;
+    un=Math.min(un,mvc[k+1]); uf[k+1]=Math.max(un,0);
+  }
+  // Backward pass: the start speed is cut only if the platform could not stop in time (an instant speed drop).
+  const ub=new Float64Array(N+1);
+  for(let k=N-1;k>=0;k--){
+    const a=minAcc(k+1,ub[k+1]);
+    ub[k]=Math.min(uf[k],ub[k+1]-2*a*ds,mvc[k]);
+  }
+  ub[N]=0;
+  const t=new Float64Array(N+1), acc=new Float64Array(N);
+  for(let k=0;k<N;k++){
+    const v0=Math.sqrt(Math.max(ub[k],0)), v1=Math.sqrt(Math.max(ub[k+1],0));
+    acc[k]=(ub[k+1]-ub[k])/(2*ds);
+    const vs=v0+v1;
+    t[k+1]=t[k]+(vs>1e-9?2*ds/vs:0);
+  }
+  return {u:ub,t,T:t[N],acc,N};
+}
+
+// Position, path speed and path acceleration at time t, for every plan kind.
+function sAt(plan,t){
+  if(plan.kind==='cruise'){
+    const w=plan.w,v0=plan.v0n,Tu=plan.Tau,Td=plan.Tad,T=plan.T;
+    if(t<=0) return {s:0,sd:v0,sdd:0};
+    if(t>=T) return {s:1,sd:0,sdd:0};
+    if(t<Tu){const x=t/Tu,dv=w-v0; return {s:v0*t+dv*Tu*(x*x*x-x*x*x*x/2),sd:v0+dv*x*x*(3-2*x),sdd:dv/Tu*6*x*(1-x)};}
+    if(t>T-Td){const x=(T-t)/Td; return {s:1-w*Td*(x*x*x-x*x*x*x/2),sd:w*x*x*(3-2*x),sdd:-w/Td*6*x*(1-x)};}
+    return {s:(v0+w)*Tu/2+w*(t-Tu),sd:w,sdd:0};
+  }
+  if(plan.kind==='quintic'){
+    const T=plan.T;
+    if(t<=0) return {s:0,sd:plan.V/T,sdd:0};
+    if(t>=T) return {s:1,sd:0,sdd:0};
+    const q=quinticS(t/T,plan.V); return {s:q.s,sd:q.sp/T,sdd:q.spp/(T*T)};
+  }
+  const ts=plan.t,u=plan.u,acc=plan.acc,N=plan.N,ds=1/N;
+  if(t<=0) return {s:0,sd:Math.sqrt(Math.max(u[0],0)),sdd:acc[0]};
+  if(t>=plan.T) return {s:1,sd:0,sdd:0};
+  let lo=0,hi=N; while(hi-lo>1){const m=(lo+hi)>>1; if(ts[m]<=t) lo=m; else hi=m;}
+  const tau=t-ts[lo], v0=Math.sqrt(Math.max(u[lo],0)), a=acc[lo];
+  const s=lo*ds+v0*tau+0.5*a*tau*tau;
+  return {s:Math.min(Math.max(s,lo*ds),(lo+1)*ds), sd:Math.max(v0+a*tau,0), sdd:a};
+}
+
+// Plot data; accel is stepped for table profiles (left and right value at each node).
+function profileSeries(plan){
+  const N=plan.N,u=plan.u,t=plan.t,acc=plan.acc,ds=1/N;
+  const out={t:[],speed:[],acc:[],accN:[],accMag:[],Ld:[[],[],[],[]],Ldd:[[],[],[],[]]};
+  const push=(tt,s,sd,sdd)=>{
+    const q=kin(plan,s,sd,sdd);
+    out.t.push(tt); out.speed.push(q.speed); out.acc.push(q.accT); out.accN.push(q.accN); out.accMag.push(q.acc);
+    for(let i=0;i<4;i++){out.Ld[i].push(q.Ld[i]);out.Ldd[i].push(q.Ldd[i]);}
+  };
+  if(plan.kind==='cruise'){
+    const T=plan.T,Tu=plan.Tau,Td=plan.Tad,n=120,ts=[];
+    for(let k=0;k<=n;k++) ts.push(Tu*k/n);
+    if(plan.Tc>1e-9) for(let k=1;k<n;k++) ts.push(Tu+plan.Tc*k/n);
+    for(let k=0;k<=n;k++) ts.push(T-Td+Td*k/n);
+    for(const tt of ts){const a=sAt(plan,tt);push(tt,a.s,a.sd,a.sdd);}
+    return out;
+  }
+  if(plan.kind==='quintic'){
+    const M=400,T=plan.T;
+    for(let k=0;k<=M;k++){const q=quinticS(k/M,plan.V);push(T*k/M,q.s,q.sp/T,q.spp/(T*T));}
+    return out;
+  }
+  for(let k=0;k<=N;k++){
+    const sd=Math.sqrt(Math.max(u[k],0));
+    if(k>0) push(t[k],k*ds,sd,acc[k-1]);
+    if(k<N) push(t[k],k*ds,sd,acc[k]);
+  }
+  return out;
+}
+//</core>
+//<route>
+// Cubic Bezier route through pts (pts[0] is the start). The path passes through every point with a continuous tangent,
+// so the platform never has to stop at an intermediate one. dir0 (unit vector or null) is the heading at the start.
+// handle scales the control-point distance (fraction of each leg): larger = rounder, wider corners.
+// The path is reparametrised by arc length: s in [0,1], |P'(s)| = Ltot.
+function makeRoute(pts,dir0,handle){
+  const n=pts.length, T=[], segs=[];
+  const unit=(x,y)=>{const m=Math.hypot(x,y);return m>1e-12?[x/m,y/m]:null;};
+  for(let i=0;i<n;i++){
+    const uin=i>0?unit(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]):null;
+    const uout=i<n-1?unit(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]):null;
+    let t;
+    if(i===0) t=dir0||uout;
+    else if(i===n-1) t=uin;
+    else if(uin&&uout) t=unit(uin[0]+uout[0],uin[1]+uout[1])||[-uin[1],uin[0]];
+    else t=uin||uout;
+    T.push(t||[1,0]);
+  }
+  for(let i=0;i<n-1;i++){
+    const A=pts[i],B=pts[i+1],len=Math.hypot(B[0]-A[0],B[1]-A[1]), h=handle*len;
+    segs.push([A,[A[0]+T[i][0]*h,A[1]+T[i][1]*h],[B[0]-T[i+1][0]*h,B[1]-T[i+1][1]*h],B]);
+  }
+  const bez=(c,t)=>{const u=1-t;return [u*u*u*c[0][0]+3*u*u*t*c[1][0]+3*u*t*t*c[2][0]+t*t*t*c[3][0],
+                                       u*u*u*c[0][1]+3*u*u*t*c[1][1]+3*u*t*t*c[2][1]+t*t*t*c[3][1]];};
+  // Arc-length table: one entry per sample (segment, local t, cumulative length).
+  const M=160, sg=[], tl=[], cum=[]; let acc=0, prev=null; const knotsL=[];
+  for(let i=0;i<segs.length;i++){
+    for(let j=0;j<=M;j++){
+      const p=bez(segs[i],j/M);
+      if(prev&&!(j===0)) acc+=Math.hypot(p[0]-prev[0],p[1]-prev[1]);
+      sg.push(i);tl.push(j/M);cum.push(acc);prev=p;
+    }
+    knotsL.push(acc);
+  }
+  const Ltot=acc;
+  const path=s=>{
+    const q=Math.min(Math.max(s,0),1)*Ltot;
+    let lo=0,hi=cum.length-1;
+    while(hi-lo>1){const m=(lo+hi)>>1; if(cum[m]<=q) lo=m; else hi=m;}
+    let a=lo,b=Math.min(lo+1,cum.length-1);
+    if(sg[a]!==sg[b]){a=b;b=Math.min(b+1,cum.length-1);}   // never interpolate across a segment boundary
+    const f=cum[b]>cum[a]?(q-cum[a])/(cum[b]-cum[a]):0, t=Math.min(Math.max(tl[a]+f*(tl[b]-tl[a]),0),1);
+    const c=segs[sg[a]], u=1-t;
+    const x=u*u*u*c[0][0]+3*u*u*t*c[1][0]+3*u*t*t*c[2][0]+t*t*t*c[3][0];
+    const y=u*u*u*c[0][1]+3*u*u*t*c[1][1]+3*u*t*t*c[2][1]+t*t*t*c[3][1];
+    const bx=3*(u*u*(c[1][0]-c[0][0])+2*u*t*(c[2][0]-c[1][0])+t*t*(c[3][0]-c[2][0]));
+    const by=3*(u*u*(c[1][1]-c[0][1])+2*u*t*(c[2][1]-c[1][1])+t*t*(c[3][1]-c[2][1]));
+    const cx=6*(u*(c[2][0]-2*c[1][0]+c[0][0])+t*(c[3][0]-2*c[2][0]+c[1][0]));
+    const cy=6*(u*(c[2][1]-2*c[1][1]+c[0][1])+t*(c[3][1]-2*c[2][1]+c[1][1]));
+    const sp=Math.max(Math.hypot(bx,by),1e-9), tx=bx/sp, ty=by/sp, dot=cx*tx+cy*ty;
+    // dT/d(arc) = (B'' - (B''.T)T)/|B'|^2 ; then scale to normalised s.
+    return {x,y,dx:Ltot*tx,dy:Ltot*ty,ddx:Ltot*Ltot*(cx-dot*tx)/(sp*sp),ddy:Ltot*Ltot*(cy-dot*ty)/(sp*sp)};
+  };
+  const drawPts=[]; for(let k=0;k<=240;k++){const P=path(k/240);drawPts.push([P.x,P.y]);}
+  return {path,Ltot,pts:drawPts,knots:knotsL.map(v=>v/Ltot)};
+}
+
+// Time-optimal profile along a curved route, starting at speed v0 (m/s) and ending at rest.
+// Platform mode limits speed and the acceleration vector (a 32-sided polygon inscribed in the circle); winch mode limits each cable.
+function planRoute(p0,p1,W,H,mode,lim,geom,v0){
+  const G=geomOf(p0,p1,geom), N=400, KP=16, cp=Math.cos(PI/(2*KP));
+  const base=Object.assign({W,H,mode,lim:{v:lim.v,a:lim.a}},G);
+  const gs=[],hs=[];
+  for(let k=0;k<=N;k++){
+    const q=kin(base,k/N,1,0), g=[], h=[];
+    if(mode==='cart'){
+      g.push(Math.hypot(q.px,q.py)); h.push(0);
+      for(let j=0;j<KP;j++){const e=PI*j/KP,ex=Math.cos(e),ey=Math.sin(e);g.push(q.px*ex+q.py*ey);h.push(q.pxx*ex+q.pyy*ey);}
+    } else for(let i=0;i<4;i++){g.push(q.Ld[i]);h.push(q.Ldd[i]);}
+    gs.push(g);hs.push(h);
+  }
+  const alims=gs[0].map((_,i)=>(mode==='cart'&&i>0)?cp:1);
+  const u0=Math.pow((v0||0)/G.D,2);
+  let f=1, plan=null;
+  for(let it=0;it<4;it++){
+    const prof=computeProfile(gs,hs,lim.v,lim.a,u0,alims.map(v=>v*f));
+    plan=Object.assign({},base,prof,{v0:v0||0});
+    const s=profileSeries(plan); let pk=0;
+    if(mode==='cart') for(const v of s.accMag) pk=Math.max(pk,v);
+    else for(let i=0;i<4;i++) for(const v of s.Ldd[i]) pk=Math.max(pk,Math.abs(v));
+    if(pk<=lim.a*1.0003) break;
+    f*=lim.a/pk*0.9998;
+  }
+  return plan;
+}
+
+// mode 'cart': limits on platform speed/accel. mode 'winch': limits on every cable's rate/accel.
+// A straight rest-to-rest move uses the exact one-axis form; a curve or a nonzero start speed goes through planRoute.
+function planMove(p0,p1,W,H,mode,lim,geom,v0){
+  if(geom||v0>0) return planRoute(p0,p1,W,H,mode,lim,geom,v0);
+  const dx=p1[0]-p0[0], dy=p1[1]-p0[1], D=Math.hypot(dx,dy);
+  if(D<1e-6) return null;
+  const N=400, C=corners(W,H), gs=[], hs=[];
+  for(let k=0;k<=N;k++){
+    if(mode==='cart'){gs.push([D]);hs.push([0]);continue;}
+    const s=k/N, px=p0[0]+dx*s, py=p0[1]+dy*s, g=[], h=[];
+    for(let i=0;i<4;i++){
+      const rx=px-C[i][0], ry=py-C[i][1], L=Math.max(Math.hypot(rx,ry),1e-6);
+      const gi=(rx*dx+ry*dy)/L;
+      g.push(gi); h.push((D*D-gi*gi)/L);
+    }
+    gs.push(g); hs.push(h);
+  }
+  let aEff=lim.a, plan=null;
+  for(let it=0;it<4;it++){
+    const prof=computeProfile(gs,hs,lim.v,aEff);
+    plan=Object.assign({p0,p1,d:[dx,dy],D,W,H,mode,lim:{v:lim.v,a:lim.a},pts:[p0,p1]},prof);
+    if(mode==='cart') break;
+    // Grid discretization can overshoot the accel limit by ~1%; tighten the internal limit until the peak sits at or just under it.
+    const s=profileSeries(plan); let pk=0;
+    for(let i=0;i<4;i++)for(const v of s.Ldd[i]) if(Math.abs(v)>pk) pk=Math.abs(v);
+    if(pk<=lim.a*1.0003) break;
+    aEff*=lim.a/pk*0.9998;
+  }
+  return plan;
+}
+//</route>
+//<smooth>
+// Quintic time scaling with start speed V (normalised by T): s(tau)=V tau+(10-6V)tau^3+(8V-15)tau^4+(6-3V)tau^5.
+// V=0 is the classic 10tau^3-15tau^4+6tau^5. Zero acceleration at both ends, zero speed at the end.
+function quinticS(tau,V){
+  V=V||0; const t2=tau*tau,t3=t2*tau,t4=t3*tau,t5=t4*tau, c3=10-6*V,c4=8*V-15,c5=6-3*V;
+  return {s:V*tau+c3*t3+c4*t4+c5*t5, sp:V+3*c3*t2+4*c4*t3+5*c5*t4, spp:6*c3*tau+12*c4*t2+20*c5*t3};
+}
+// Peak limit ratios (<=1 means within the limits) at one sample of a plan.
+function limitRatios(q,mode,lim,r){
+  if(mode==='cart'){r.rv=Math.max(r.rv,q.speed/lim.v);r.ra=Math.max(r.ra,q.acc/lim.a);}
+  else for(let i=0;i<4;i++){r.rv=Math.max(r.rv,Math.abs(q.Ld[i])/lim.v);r.ra=Math.max(r.ra,Math.abs(q.Ldd[i])/lim.a);}
+}
+
+// Single quintic from the start state to rest at the end of the path. From rest, rates scale as 1/T and accelerations
+// as 1/T^2, so the shortest T is closed-form. With a start speed it is searched: first duration that holds every limit.
+function planQuintic(p0,p1,W,H,mode,lim,geom,v0){
+  const G=geomOf(p0,p1,geom); if(G.D<1e-6) return null;
+  const plan=Object.assign({kind:'quintic',W,H,mode,lim:{v:lim.v,a:lim.a},T:1,V:0},G);
+  const ratios=(T,V)=>{
+    plan.V=V; const r={rv:0,ra:0}; let ok=true; const M=160;
+    for(let k=0;k<=M;k++){
+      const q0=quinticS(k/M,V); if(q0.sp<-1e-9||q0.s>1+1e-6) ok=false;
+      limitRatios(kin(plan,q0.s,q0.sp/T,q0.spp/(T*T)),mode,lim,r);
+    }
+    return {rv:r.rv,ra:r.ra,ok};
+  };
+  const good=r=>r.ok&&r.rv<=1&&r.ra<=1;
+  const r1=ratios(1,0), T0=1.0002*Math.max(r1.rv,Math.sqrt(r1.ra));
+  let sd0=(v0||0)/G.D, T=T0, solved=sd0<=1e-9;
+  for(let tries=0;tries<12&&!solved;tries++){
+    let prev=null, found=null;
+    for(let k=0,Tk=T0;k<120;k++,Tk*=1.06){ if(good(ratios(Tk,sd0*Tk))){found=Tk;break;} prev=Tk; }
+    if(found){
+      let lo=prev||found/1.06, hi=found;
+      for(let i=0;i<28;i++){const m=(lo+hi)/2; if(good(ratios(m,sd0*m))) hi=m; else lo=m;}
+      T=hi*1.0002; solved=true; break;
+    }
+    sd0*=0.7;   // cannot stop in time from this speed: shed some of it (an instant speed drop)
+  }
+  if(!solved){sd0=0;T=T0;}
+  // Fine-grid check: stretch T if the coarse search missed a peak.
+  for(let i=0;i<4;i++){
+    const V=sd0>1e-9?sd0*T:0, r={rv:0,ra:0}; plan.V=V;
+    for(let k=0;k<=600;k++){const q0=quinticS(k/600,V);limitRatios(kin(plan,q0.s,q0.sp/T,q0.spp/(T*T)),mode,lim,r);}
+    if(r.rv<=1.0002&&r.ra<=1.0002) break;
+    T*=Math.max(r.rv,Math.sqrt(r.ra))*1.0002;
+  }
+  plan.T=T; plan.V=sd0>1e-9?sd0*T:0;
+  return plan;
+}
+
+// Quintic ramps around a constant-speed cruise. Path length is normalised to 1; w is the cruise speed along it.
+// Ramp up goes from the start speed to w over Tau, ramp down from w to rest over Tad, each sd = a + (b-a)(3x^2-2x^3),
+// so every ramp is the quintic through its end states with zero acceleration at both ends. Each ramp is the shortest
+// the acceleration limit allows; w is the highest the velocity limit and the path's curvature allow.
+function planCruise(p0,p1,W,H,mode,lim,geom,v0){
+  const G=geomOf(p0,p1,geom); if(G.D<1e-6) return null;
+  const base=Object.assign({kind:'cruise',W,H,mode,lim:{v:lim.v,a:lim.a}},G);
+  let v0n=(v0||0)/G.D;
+  const mk=(w,Tu,Td)=>{
+    const pl=Object.assign({},base,{w,v0n,Tau:Tu,Tad:Td});
+    const Tc=(1-(v0n+w)*Tu/2-w*Td/2)/w;
+    if(Tc<-1e-9) return null;
+    pl.Tc=Math.max(0,Tc); pl.T=Tu+pl.Tc+Td; return pl;
+  };
+  const peaks=(pl,win)=>{
+    const r={rv:0,ra:0}, n=win==='all'?160:48;
+    const at=t=>{const a=sAt(pl,t); limitRatios(kin(pl,a.s,a.sd,a.sdd),mode,lim,r);};
+    if(win!=='dn') for(let k=0;k<=n;k++) at(pl.Tau*k/n);
+    if(win==='all') for(let k=1;k<600;k++) at(pl.Tau+pl.Tc*k/600);
+    if(win!=='up') for(let k=0;k<=n;k++) at(pl.T-pl.Tad+pl.Tad*k/n);
+    return r;
+  };
+  const within=r=>r.ra<=1&&r.rv<=1;
+  const minRamp=(ok,lo,hi)=>{
+    if(!(hi>lo)) return null;
+    if(ok(lo)) return lo; if(!ok(hi)) return null;
+    for(let i=0;i<24;i++){const m=(lo+hi)/2; if(ok(m)) hi=m; else lo=m;}
+    return hi;
+  };
+  const rampsFor=w=>{
+    const tu=1e-4/(v0n+w), td=1e-4/w;   // the other ramp, made negligible while one ramp is tested
+    const Tu=minRamp(T=>{const pl=mk(w,T,td);return pl&&within(peaks(pl,'up'));},1e-3/(v0n+w),2*(1-w*td/2)/(v0n+w));
+    const Td=minRamp(T=>{const pl=mk(w,tu,T);return pl&&within(peaks(pl,'dn'));},1e-3/w,2*(1-(v0n+w)*tu/2)/w);
+    if(Tu===null||Td===null) return null;
+    return {Tu,Td,fits:(v0n+w)*Tu/2+w*Td/2<=1+1e-9};
+  };
+  // Highest steady speed: velocity limit and the centripetal term of acceleration, over the whole path.
+  let wcap=Infinity;
+  for(let k=0;k<=800;k++){
+    const q=kin(base,k/800,1,0);
+    if(mode==='cart'){
+      wcap=Math.min(wcap,lim.v/q.speed);
+      if(q.acc>1e-9) wcap=Math.min(wcap,Math.sqrt(lim.a/q.acc));
+    } else for(let i=0;i<4;i++){
+      const r=Math.abs(q.Ld[i]),c=Math.abs(q.Ldd[i]);
+      if(r>1e-9) wcap=Math.min(wcap,lim.v/r);
+      if(c>1e-9) wcap=Math.min(wcap,Math.sqrt(lim.a/c));
+    }
+  }
+  let w=wcap, R=null;
+  for(let shed=0;shed<14;shed++){
+    w=wcap; R=rampsFor(w);
+    if(!R||!R.fits){
+      // Too short to reach max speed: the largest steady speed whose two ramps still fit.
+      let lo=wcap*1e-4, hi=wcap, best=null;
+      for(let i=0;i<22;i++){const m=(lo+hi)/2, r=rampsFor(m); if(r&&r.fits){lo=m;best=r;} else hi=m;}
+      w=lo; R=best;
+    }
+    if(R) break;
+    v0n*=0.7;   // cannot slow down in time: shed some start speed (an instant speed drop)
+  }
+  if(!R){v0n=0;w=wcap;R=rampsFor(w);if(!R)return null;}
+  let Tu=R.Tu,Td=R.Td, pl=mk(w,Tu,Td);
+  for(let i=0;i<8&&pl;i++){
+    const pk=peaks(pl,'all'); if(within({ra:pk.ra/1.0003,rv:pk.rv/1.0003})) break;
+    Tu*=1.003; Td*=1.003; pl=mk(w,Tu,Td)||pl;
+  }
+  return pl;
+}
+
+// Quintic ramps with a cruise when that is faster than the single quintic; otherwise the single quintic.
+function planSmooth(p0,p1,W,H,mode,lim,cruise,geom,v0){
+  const q=planQuintic(p0,p1,W,H,mode,lim,geom,v0);
+  if(!q||!cruise) return q;
+  const c=planCruise(p0,p1,W,H,mode,lim,geom,v0);
+  return (c&&c.T<q.T*0.9995)?c:q;
+}
+//</smooth>
+const $=id=>document.getElementById(id);
+const MINUS='−', FIG=' ';
+const NAMES=['W1','W2','W3','W4'];
+const state={W:4,H:3,mode:'cart',cart:{v:1,a:2},winch:{v:0.5,a:1.5,d:50},
+  plan:null,ser:null,tNow:0,playing:false,queue:[],rate:1,vec:true,traj:'trap',cruise:true,blend:true,handle:0.4,view:{z:1,cx:2,cy:1.5}};
+
+const fmt=(v,d=2)=>{const x=Math.abs(v)<0.5*Math.pow(10,-d)?0:v;return (x<0?MINUS:'')+Math.abs(x).toFixed(d);};
+const sgn=(v,d=2)=>Math.abs(v)<0.5*Math.pow(10,-d)?FIG+(0).toFixed(d):(v<0?MINUS:'+')+Math.abs(v).toFixed(d);
+const curLim=()=>state.mode==='cart'?state.cart:state.winch;
+const drumR=()=>Math.max(state.winch.d,1)/2000;
+function niceStep(range,n){
+  const raw=range/n, p=Math.pow(10,Math.floor(Math.log10(raw))), f=raw/p;
+  return (f<1.5?1:f<3?2:f<7?5:10)*p;
+}
+function niceTicks(min,max,n){
+  const step=niceStep(max-min,n), out=[];
+  for(let i=Math.ceil(min/step-1e-9);i*step<=max+1e-9;i++) out.push(+(i*step).toPrecision(10));
+  return {ticks:out,step,dec:Math.max(0,-Math.floor(Math.log10(step)+1e-9))};
+}
+function status(msg){$('status').textContent=msg;}
+
+//<planner-slot>
+//</planner-slot>
+
+/* ---------- stage ---------- */
+let geo=null, R={};
+const clamp=(v,a,b)=>Math.min(Math.max(v,a),b);
+const toPx=(x,y)=>[geo.wx+geo.ww/2+(x-state.view.cx)*geo.scale, geo.wy+geo.wh/2-(y-state.view.cy)*geo.scale];
+const toWorld=(px,py)=>[state.view.cx+(px-geo.wx-geo.ww/2)/geo.scale, state.view.cy-(py-geo.wy-geo.wh/2)/geo.scale];
+
+function clampView(){
+  const v=state.view; v.z=clamp(v.z,1,60);
+  if(v.z<=1.0001){v.z=1;v.cx=state.W/2;v.cy=state.H/2;}
+  v.cx=clamp(v.cx,0,state.W); v.cy=clamp(v.cy,0,state.H);
+}
+// Zoom about a screen point so the world point under it stays put.
+function zoomAt(factor,px,py){
+  const v=state.view, w=toWorld(px,py);
+  v.z*=factor; clampView();
+  const sc=geo.fit*v.z;
+  v.cx=w[0]-(px-geo.wx-geo.ww/2)/sc; v.cy=w[1]+(py-geo.wy-geo.wh/2)/sc;
+  clampView(); applyView();
+}
+function applyView(){layoutStage(); render();}
+
+function layoutStage(){
+  const stage=$('stage'), wrapW=Math.max(Math.floor($('stageWrap').clientWidth),240);
+  const small=wrapW<520, mx=small?34:54, mt=34, mb=small?30:36, W=state.W, H=state.H;
+  clampView();
+  const ww=wrapW-2*mx, maxH=small?460:600, minH=230;
+  let fit=ww/W, hPx=H*fit+mt+mb;
+  if(hPx>maxH){fit=(maxH-mt-mb)/H;hPx=maxH;}
+  if(hPx<minH) hPx=minH;
+  const wh=hPx-mt-mb, v=state.view, sc=fit*v.z;
+  geo={wrapW,hPx,wx:mx,wy:mt,ww,wh,fit,scale:sc};
+  stage.setAttribute('width',wrapW); stage.setAttribute('height',hPx);
+  stage.setAttribute('viewBox',`0 0 ${wrapW} ${hPx}`);
+  stage.style.touchAction=v.z>1?'none':'pan-y';
+
+  // Visible world window and a grid step that suits it; the axes rescale with zoom.
+  const x0=v.cx-ww/2/sc, x1=v.cx+ww/2/sc, y0=v.cy-wh/2/sc, y1=v.cy+wh/2/sc;
+  const visW=Math.min(x1,W)-Math.max(x0,0), visH=Math.min(y1,H)-Math.max(y0,0);
+  const step=niceStep(Math.max(visW,visH),8), dec=Math.max(0,-Math.floor(Math.log10(step)+1e-9));
+  $('zoomRead').textContent=`${v.z.toFixed(1)}× · grid ${step.toFixed(dec)} m`;
+  const [fl,fb]=toPx(0,0), [fr,ft]=toPx(W,H);
+  const top=Math.max(ft,mt-12), bot=Math.min(fb,mt+wh+12), lef=Math.max(fl,mx-12), rig=Math.min(fr,mx+ww+12);
+  let h=`<defs><clipPath id="clipWin"><rect x="${mx-12}" y="${mt-12}" width="${ww+24}" height="${wh+24}"/></clipPath></defs><g clip-path="url(#clipWin)">`;
+  h+=`<rect class="frame" x="${fl}" y="${ft}" width="${fr-fl}" height="${fb-ft}"/>`;
+  let ticks='';
+  const tickY=clamp(fb,mt,mt+wh)+20, tickX=clamp(fl,mx,mx+ww)-14;
+  for(let i=Math.ceil(Math.max(x0,0)/step-1e-9);i*step<=Math.min(x1,W)+1e-9;i++){
+    const px=toPx(i*step,0)[0];
+    if(i>0&&i*step<W-1e-9) h+=`<line class="gl" x1="${px}" y1="${top}" x2="${px}" y2="${bot}"/>`;
+    if(px>=mx-1&&px<=mx+ww+1) ticks+=`<text class="tk" x="${px}" y="${tickY}" text-anchor="middle">${(i*step).toFixed(dec)}</text>`;
+  }
+  for(let i=Math.ceil(Math.max(y0,0)/step-1e-9);i*step<=Math.min(y1,H)+1e-9;i++){
+    const py=toPx(0,i*step)[1];
+    if(i>0&&i*step<H-1e-9) h+=`<line class="gl" x1="${lef}" y1="${py}" x2="${rig}" y2="${py}"/>`;
+    if(py>=mt-1&&py<=mt+wh+1) ticks+=`<text class="tk" x="${tickX}" y="${py+3.5}" text-anchor="end">${(i*step).toFixed(dec)}</text>`;
+  }
+  h+=`<path id="sPath" class="pathL"/><path id="sProg" class="progL"/>`;
+  const C=corners(W,H);
+  for(let i=0;i<4;i++){
+    const [cx,cy]=toPx(C[i][0],C[i][1]);
+    h+=`<line id="sCable${i}" class="cable c${i}" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy}"/>`;
+  }
+  h+=`<path id="sVel" class="arrV"/><path id="sAcc" class="arrA"/>`;
+  h+=`<g id="sQueue"></g>`;
+  h+=`<g id="sTarget"><circle r="8" class="tgtC"/><path class="tgtX" d="M-3.5 0H3.5M0 -3.5V3.5"/></g>`;
+  h+=`<g id="sRobot"><circle r="10" class="robot"/><circle r="2.5" class="robotDot"/></g>`;
+  for(let i=0;i<4;i++){
+    const [cx,cy]=toPx(C[i][0],C[i][1]), left=(i===0||i===3), tp=(i<2);
+    h+=`<g class="c${i}" transform="translate(${cx} ${cy})"><circle r="10" class="drum"/><g id="sSpoke${i}"><line class="spoke" x1="0" y1="0" x2="6.5" y2="0"/></g></g>`;
+    h+=`<text class="wlab c${i}" x="${cx+(left?16:-16)}" y="${cy+(tp?26:-14)}" text-anchor="${left?'start':'end'}">${NAMES[i]} <tspan id="sRate${i}"></tspan></text>`;
+  }
+  h+=`</g>`+ticks;
+  h+=`<text class="cap" x="${mx+ww/2}" y="${mt-14}">${W.toFixed(2)} × ${H.toFixed(2)} m</text>`;
+  stage.innerHTML=h;
+  R={path:$('sPath'),prog:$('sProg'),vel:$('sVel'),acc:$('sAcc'),target:$('sTarget'),robot:$('sRobot'),queue:$('sQueue'),
+     cable:[0,1,2,3].map(i=>$('sCable'+i)),spoke:[0,1,2,3].map(i=>$('sSpoke'+i)),rate:[0,1,2,3].map(i=>$('sRate'+i))};
+  updateQueue();
+}
+
+// Numbered markers for points still ahead: the queue (stop at each) or the remaining route points (flowing).
+function waypointMarks(sNow){
+  const p=state.plan;
+  if(p&&p.wps&&state.blend){const out=[];for(let i=0;i<p.wps.length-1;i++) if(p.knots[i]>sNow+1e-4) out.push(p.wps[i]);return out;}
+  return state.queue;
+}
+function updateQueue(sNow){
+  if(!R.queue||!geo) return;
+  const list=waypointMarks(sNow||0), v=state.view;
+  const key=list.map(t=>t[0].toFixed(3)+','+t[1].toFixed(3)).join(';')+'|'+geo.scale.toFixed(2)+'|'+v.cx.toFixed(3)+','+v.cy.toFixed(3);
+  if(R.qKey===key) return; R.qKey=key;
+  R.queue.innerHTML=list.map((t,i)=>{const [x,y]=toPx(t[0],t[1]);
+    return `<circle class="qC" cx="${x}" cy="${y}" r="7"/><text class="qT" x="${x}" y="${y+3.3}">${i+1}</text>`;}).join('');
+}
+
+function arrowPath(x0,y0,dx,dy,len){
+  if(len<3) return '';
+  const x1=x0+dx*len, y1=y0+dy*len, hl=Math.min(9,len*0.5), hw=hl*0.55, bx=x1-dx*hl, by=y1-dy*hl;
+  const r=n=>n.toFixed(1);
+  return `M${r(x0)} ${r(y0)}L${r(x1)} ${r(y1)}M${r(bx-dy*hw)} ${r(by+dx*hw)}L${r(x1)} ${r(y1)}L${r(bx+dy*hw)} ${r(by-dx*hw)}`;
+}
+
+const polyD=pts=>pts.map((p,i)=>{const [x,y]=toPx(p[0],p[1]);return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);}).join('');
+
+function renderStage(q,sNow){
+  const plan=state.plan, ser=state.ser, pts=plan.pts||[plan.p0,plan.p1];
+  const [rx,ry]=toPx(q.x,q.y), [tx,ty]=toPx(plan.p1[0],plan.p1[1]);
+  const K=pts.length-1, n=Math.min(K,Math.floor(sNow*K+1e-9));
+  const done=pts.slice(0,n+1); done.push([q.x,q.y]);
+  R.path.setAttribute('d',polyD(pts));
+  R.prog.setAttribute('d',polyD(done));
+  R.target.setAttribute('transform',`translate(${tx} ${ty})`);
+  R.robot.setAttribute('transform',`translate(${rx} ${ry})`);
+  const rd=drumR();
+  for(let i=0;i<4;i++){
+    R.cable[i].setAttribute('x2',rx);R.cable[i].setAttribute('y2',ry);
+    R.spoke[i].setAttribute('transform',`rotate(${((q.L[i]/rd)%(2*PI))*180/PI})`);
+    R.rate[i].textContent=sgn(q.Ld[i])+' m/s';
+  }
+  if(state.vec){
+    const ux=q.tx, uy=-q.ty, px=-uy, py=ux, am=Math.hypot(q.ax,q.ay);
+    const vLen=ser.maxSpeed>0?q.speed/ser.maxSpeed*72:0;
+    const aLen=ser.maxAcc>0?am/ser.maxAcc*54:0;
+    R.vel.setAttribute('d',arrowPath(rx+px*8,ry+py*8,ux,uy,vLen));
+    R.acc.setAttribute('d',am>1e-9?arrowPath(rx-px*8,ry-py*8,q.ax/am,-q.ay/am,aLen):'');
+  } else {R.vel.setAttribute('d','');R.acc.setAttribute('d','');}
+  updateQueue(sNow);
+}
+
+/* ---------- plots ---------- */
+const PLOT_H=150;
+const curved=p=>(p.pts||[]).length>2;
+const plotDefs=[
+  {id:'pSpeed',cls:['cink'],series:s=>[s.speed],pick:q=>[q.speed],unit:'m/s',
+   limits:p=>p.mode==='cart'?[p.lim.v]:[]},
+  {id:'pAcc',cls:['cink','cmuted'],series:(s,p)=>curved(p)?[s.acc,s.accN]:[s.acc],pick:(q,p)=>curved(p)?[q.accT,q.accN]:[q.accT],
+   unit:p=>curved(p)?'m/s² · black along the path, grey sideways':'m/s² along the path',
+   limits:p=>p.mode==='cart'?[p.lim.a,-p.lim.a]:[]},
+  {id:'pCv',cls:['c0','c1','c2','c3'],series:s=>s.Ld,pick:q=>q.Ld,unit:'',
+   limits:p=>p.mode==='winch'?[p.lim.v,-p.lim.v]:[]},
+  {id:'pCa',cls:['c0','c1','c2','c3'],series:s=>s.Ldd,pick:q=>q.Ldd,unit:'',
+   limits:p=>p.mode==='winch'?[p.lim.a,-p.lim.a]:[]}
+];
+const legendHtml=()=>NAMES.map((n,i)=>`<span><i class="sw c${i}"></i>${n}</span>`).join('');
+
+function renderPlots(){
+  const plan=state.plan, ser=state.ser; if(!plan) return;
+  $('lg1').innerHTML=legendHtml(); $('lg2').innerHTML=legendHtml();
+  for(const def of plotDefs){
+    const host=$(def.id), body=host.querySelector('.pbody');
+    const w=Math.max(Math.floor(body.clientWidth),220), h=PLOT_H, m={l:40,r:12,t:8,b:22};
+    const series=def.series(ser,plan), lims=def.limits(plan), T=plan.T;
+    let ymin=0,ymax=0;
+    for(const a of series) for(const v of a){if(v<ymin)ymin=v;if(v>ymax)ymax=v;}
+    for(const v of lims){if(v<ymin)ymin=v;if(v>ymax)ymax=v;}
+    if(ymax-ymin<1e-9){ymax=1;ymin=-1;}
+    const pad=(ymax-ymin)*0.08; ymax+=pad; if(ymin<0) ymin-=pad;
+    const X=t=>m.l+(t/T)*(w-m.l-m.r), Y=v=>m.t+(1-(v-ymin)/(ymax-ymin))*(h-m.t-m.b);
+    const yt=niceTicks(ymin,ymax,4), xt=niceTicks(0,T,5);
+    let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${host.querySelector('h3').textContent} over time">`;
+    for(const v of yt.ticks){
+      s+=`<line class="${Math.abs(v)<1e-9?'pz':'pg'}" x1="${m.l}" y1="${Y(v)}" x2="${w-m.r}" y2="${Y(v)}"/>`;
+      s+=`<text class="tk" x="${m.l-6}" y="${Y(v)+3.5}" text-anchor="end">${v.toFixed(yt.dec)}</text>`;
+    }
+    for(const t of xt.ticks){
+      s+=`<text class="tk" x="${X(t)}" y="${h-6}" text-anchor="middle">${t.toFixed(xt.dec)}</text>`;
+    }
+    for(const v of lims){
+      s+=`<line class="lim" x1="${m.l}" y1="${Y(v)}" x2="${w-m.r}" y2="${Y(v)}"/>`;
+    }
+    if(lims.length){const v=Math.max(...lims);
+      s+=`<text class="tk" x="${w-m.r-2}" y="${Y(v)-4}" text-anchor="end">limit ${fmt(v)}</text>`;}
+    series.forEach((a,i)=>{
+      let d='';
+      for(let k=0;k<a.length;k++) d+=(k?'L':'M')+X(ser.t[k]).toFixed(1)+' '+Y(a[k]).toFixed(1);
+      s+=`<path class="ser ${def.cls[i]}" d="${d}"/>`;
+    });
+    s+=`<line class="cur" y1="${m.t}" y2="${h-m.b}" x1="0" x2="0"/>`;
+    series.forEach((a,i)=>{s+=`<circle class="dot ${def.cls[i]}" r="3.5" cx="0" cy="0"/>`;});
+    s+='</svg>';
+    body.innerHTML=s;
+    def.X=X; def.Y=Y; def.cur=body.querySelector('.cur'); def.dots=[...body.querySelectorAll('.dot')];
+    const u=host.querySelector('.u');
+    if(u) u.textContent=(typeof def.unit==='function'?def.unit(plan):def.unit)+(lims.length?' · dashed line is your limit':'');
+  }
+  $('plotNote').textContent='Cable rate: + pays cable out, − reels it in. Dashed lines mark the limits you set; everything else is the result.';
+}
+
+function updateCursors(q){
+  const T=state.plan.T, t=Math.min(state.tNow,T);
+  for(const def of plotDefs){
+    if(!def.X) continue;
+    const x=def.X(t); def.cur.setAttribute('x1',x); def.cur.setAttribute('x2',x);
+    const vals=def.pick(q,state.plan);
+    def.dots.forEach((d,i)=>{d.setAttribute('cx',x);d.setAttribute('cy',def.Y(vals[i]));});
+  }
+}
+
+/* ---------- readout ---------- */
+function initRows(){
+  $('wRows').innerHTML=NAMES.map((n,i)=>`<tr class="c${i}"><td><i class="sw"></i>${n}</td><td id="wL${i}"></td><td id="wV${i}"></td><td id="wA${i}"></td><td id="wR${i}"></td></tr>`).join('');
+}
+function renderReadout(q){
+  $('rPos').textContent=`(${fmt(q.x)}, ${fmt(q.y)}) m`;
+  $('rSpd').textContent=`${fmt(q.speed)} m/s`;
+  $('rAcc').textContent=`${sgn(q.accT)} m/s²`;
+  const cv=curved(state.plan); $('rowAccN').hidden=$('rAccN').hidden=!cv;
+  if(cv) $('rAccN').textContent=`${sgn(q.accN)} m/s²`;
+  const circ=PI*Math.max(state.winch.d,1)/1000;
+  for(let i=0;i<4;i++){
+    $('wL'+i).textContent=q.L[i].toFixed(3);
+    $('wV'+i).textContent=sgn(q.Ld[i]);
+    $('wA'+i).textContent=sgn(q.Ldd[i]);
+    $('wR'+i).textContent=fmt(Math.abs(q.Ld[i])/circ*60,0);
+  }
+}
+function updateSummary(){
+  const p=state.plan, s=state.ser;
+  const pill=(val,lim)=>val>=lim*0.995?'<span class="pill">at limit</span>':'';
+  const lim=p.lim, cart=p.mode==='cart';
+  $('sDist').textContent=`${fmt(p.D)} m`;
+  $('sDur').textContent=`${fmt(p.T)} s`;
+  $('rowCruise').hidden=$('valCruise').hidden=state.traj!=='quintic';
+  $('valCruise').textContent=p.kind==='cruise'?`${fmt(p.Tc)} s`:'none';
+  $('sV').innerHTML=`${fmt(s.maxSpeed)} m/s${cart?pill(s.maxSpeed,lim.v):''}`;
+  $('sA').innerHTML=`${fmt(s.maxAcc)} m/s²${cart?pill(s.maxAcc,lim.a):''}`;
+  $('sCV').innerHTML=`${fmt(s.maxCv)} m/s <span class="c${s.cvi}"><i class="sw"></i>${NAMES[s.cvi]}</span>${!cart?pill(s.maxCv,lim.v):''}`;
+  $('sCA').innerHTML=`${fmt(s.maxCa)} m/s² <span class="c${s.cai}"><i class="sw"></i>${NAMES[s.cai]}</span>${!cart?pill(s.maxCa,lim.a):''}`;
+}
+
+/* ---------- plan and playback ---------- */
+function clampTarget(t){
+  const m=Math.max(0.02*Math.min(state.W,state.H),0.01);
+  return [Math.min(Math.max(t[0],m),state.W-m),Math.min(Math.max(t[1],m),state.H-m)];
+}
+function makePlan(p0,p1){
+  const l=curLim();
+  if(state.traj==='quintic') return planSmooth(p0,p1,state.W,state.H,state.mode,{v:l.v,a:l.a},state.cruise);
+  return planMove(p0,p1,state.W,state.H,state.mode,{v:l.v,a:l.a});
+}
+// A plan from the platform's current state (position, heading, speed) through the waypoints, ending at rest.
+// One straight leg from rest is the exact line plan; anything else is a Bezier route through every point.
+function makeRoutePlan(pos,dir,v0,wps){
+  const l=curLim(), lim={v:l.v,a:l.a}, pts=[pos];
+  for(const w of wps){const L=pts[pts.length-1]; if(Math.hypot(w[0]-L[0],w[1]-L[1])>1e-4) pts.push(w);}
+  if(pts.length<2) return null;
+  let plan;
+  if(pts.length===2&&v0<1e-9){
+    plan=makePlan(pts[0],pts[1]); if(!plan) return null;
+    plan.knots=[1];
+  } else {
+    const R=makeRoute(pts,dir,state.handle), geom={D:R.Ltot,path:R.path,pts:R.pts,knots:R.knots}, p1=pts[pts.length-1];
+    plan=state.traj==='quintic'
+      ?planSmooth(pos,p1,state.W,state.H,state.mode,lim,state.cruise,geom,v0)
+      :planMove(pos,p1,state.W,state.H,state.mode,lim,geom,v0);
+    if(!plan) return null;
+    plan.knots=R.knots;
+  }
+  plan.wps=pts.slice(1); plan.start={pos,dir,v0};
+  return plan;
+}
+function setPlan(plan){
+  const s=profileSeries(plan);
+  s.maxSpeed=0;s.maxAcc=0;s.maxCv=0;s.maxCa=0;s.cvi=0;s.cai=0;
+  for(const v of s.speed) if(v>s.maxSpeed) s.maxSpeed=v;
+  for(const v of s.accMag) if(v>s.maxAcc) s.maxAcc=v;
+  for(let i=0;i<4;i++){
+    for(const v of s.Ld[i]) if(Math.abs(v)>s.maxCv){s.maxCv=Math.abs(v);s.cvi=i;}
+    for(const v of s.Ldd[i]) if(Math.abs(v)>s.maxCa){s.maxCa=Math.abs(v);s.cai=i;}
+  }
+  state.plan=plan; state.ser=s; state.tNow=0; state.playing=false;
+  renderPlots(); updateSummary(); updateQueue(); render();
+}
+function kinAt(plan,t){const a=sAt(plan,t);return kin(plan,a.s,a.sd,a.sdd);}
+function currentPos(){
+  if(!state.plan) return [state.W/2,state.H/2];
+  const q=kinAt(state.plan,state.tNow); return [q.x,q.y];
+}
+function startMove(target){
+  const plan=makeRoutePlan(currentPos(),null,0,[target]);
+  if(!plan){status('Already there.');return;}
+  setPlan(plan); state.playing=true;
+  $('tx').value=target[0].toFixed(2); $('ty').value=target[1].toFixed(2);
+  status(`Moving to (${fmt(target[0])}, ${fmt(target[1])}) m.`+(plan.kind==='cruise'?` Cruises for ${fmt(plan.Tc)} s.`:''));
+  render();
+}
+// Add a point while the platform is moving: re-plan from its current position, heading and speed through every point still ahead.
+function addToRoute(target){
+  const p=state.plan, a=sAt(p,state.tNow), q=kin(p,a.s,a.sd,a.sdd);
+  const wps=p.wps||[p.p1], kn=p.knots||[1], rest=wps.filter((w,i)=>kn[i]>a.s+1e-4);
+  if(rest.length>=9){status('The route is full: 9 points ahead.');return;}
+  rest.push(target);
+  const plan=makeRoutePlan([q.x,q.y],q.speed>1e-6?[q.tx,q.ty]:null,q.speed,rest);
+  if(!plan) return;
+  setPlan(plan); state.playing=true;
+  $('tx').value=target[0].toFixed(2); $('ty').value=target[1].toFixed(2);
+  const n=plan.wps.length;
+  status(`Added to the route: ${n} point${n>1?'s':''} ahead, no stop until the last.`);
+  render();
+}
+function requestMove(raw){
+  const target=clampTarget(raw);
+  if(state.playing){
+    if(state.blend) return addToRoute(target);
+    if(state.queue.length<8){state.queue.push(target);updateQueue();status(`Queued. ${state.queue.length} move${state.queue.length>1?'s':''} waiting.`);}
+    return;
+  }
+  startMove(target);
+}
+function resetAll(){
+  state.queue=[];
+  const c=[state.W/2,state.H/2], t=[0.8*state.W,0.8*state.H];
+  setPlan(makePlan(c,t));
+  $('tx').value=t[0].toFixed(2); $('ty').value=t[1].toFixed(2);
+  status('Example move loaded. Press Play, or click the frame to send the platform somewhere else.');
+}
+function replanCurrent(){
+  if(!state.plan) return;
+  const p=state.plan, plan=p.start?makeRoutePlan(p.start.pos,p.start.dir,p.start.v0,p.wps):makePlan(p.p0,p.p1); if(!plan) return;
+  setPlan(plan);
+  status('Settings changed. The plots show the new plan; press Play to run it from the start.');
+}
+function onArrive(){
+  const p=state.plan;
+  status(`Arrived at (${fmt(p.p1[0])}, ${fmt(p.p1[1])}) m after ${fmt(p.T)} s.`);
+  if(state.queue.length){const n=state.queue.shift();updateQueue();startMove(n);}
+}
+
+function render(){
+  const plan=state.plan; if(!plan||!geo) return;
+  const a=sAt(plan,state.tNow), q=kin(plan,a.s,a.sd,a.sdd);
+  renderStage(q,a.s); renderReadout(q); updateCursors(q);
+  $('tRead').textContent=`${fmt(Math.min(state.tNow,plan.T))} / ${fmt(plan.T)} s`;
+  $('scrub').value=Math.round(Math.min(state.tNow/plan.T,1)*1000);
+  $('btnPlay').textContent=state.playing?'Pause':(state.tNow<=0?'Play':(state.tNow>=plan.T?'Replay':'Resume'));
+}
+
+let lastTs=0;
+function frame(ts){
+  const dt=lastTs?Math.min((ts-lastTs)/1000,0.1):0; lastTs=ts;
+  if(state.playing&&state.plan){
+    state.tNow+=dt*state.rate;
+    if(state.tNow>=state.plan.T){state.tNow=state.plan.T;state.playing=false;render();onArrive();}
+    else render();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- controls ---------- */
+function num(el,min,max){
+  const v=parseFloat(el.value), ok=isFinite(v)&&v>=min&&v<=max;
+  el.closest('.inp').classList.toggle('bad',!ok);
+  return ok?v:null;
+}
+function bindLimit(id,obj,key,min,max){
+  $(id).addEventListener('input',()=>{const v=num($(id),min,max);if(v===null)return;obj[key]=v;replanCurrent();});
+}
+function applyMode(){
+  const cart=state.mode==='cart';
+  $('cartFields').hidden=!cart; $('winchFields').hidden=cart;
+  $('modeHint').textContent=cart
+    ?'The platform runs a straight line, capped at the speed and acceleration below. Cable rates are whatever the geometry demands.'
+    :'The platform runs a straight line as fast as every winch allows. No cable exceeds the rate and acceleration below.';
+}
+function applyTraj(){
+  const q=state.traj==='quintic';
+  $('cruiseRow').hidden=!q;
+  $('trajHint').textContent=!q
+    ?'Bang-bang acceleration: the shortest possible time, but acceleration jumps instantly between full and zero.'
+    :state.cruise
+      ?'Smooth ramps up and down, with zero acceleration at their ends, joined by a constant-speed cruise. Ramp length follows your acceleration limit. A move too short to reach max speed uses the single quintic instead when that is faster.'
+      :'One quintic, s(τ) = 10τ³ − 15τ⁴ + 6τ⁵: zero velocity and acceleration at both ends. Speed is a single bell, so it touches max speed only for an instant.';
+}
+function applyBlend(){
+  $('handleField').hidden=!state.blend;
+  $('blendHint').textContent=state.blend
+    ?'Click while the platform is moving to add a point. The route is a cubic Bezier through your points: the platform keeps its speed through each one and stops only at the last. A bigger handle makes wider, rounder corners; tight corners slow it down.'
+    :'Each point is reached at rest. Clicks during a move wait in line and run one after another.';
+}
+function bindControls(){
+  $('blend').addEventListener('change',()=>{state.blend=$('blend').checked;applyBlend();render();});
+  $('handle').addEventListener('input',()=>{const v=num($('handle'),0.05,1.5);if(v===null)return;state.handle=v;replanCurrent();});
+  for(const id of ['trajTrap','trajQuin']) $(id).addEventListener('change',()=>{
+    state.traj=$('trajQuin').checked?'quintic':'trap'; applyTraj(); replanCurrent();
+  });
+  $('cruise').addEventListener('change',()=>{state.cruise=$('cruise').checked;applyTraj();replanCurrent();});
+  bindLimit('cv',state.cart,'v',0.001,100); bindLimit('ca',state.cart,'a',0.001,1000);
+  bindLimit('wv',state.winch,'v',0.001,100); bindLimit('wa',state.winch,'a',0.001,1000);
+  $('wd').addEventListener('input',()=>{const v=num($('wd'),5,1000);if(v===null)return;state.winch.d=v;render();});
+  for(const id of ['modeCart','modeWinch']) $(id).addEventListener('change',()=>{
+    state.mode=$('modeWinch').checked?'winch':'cart'; applyMode(); replanCurrent();
+  });
+  const dims=()=>{
+    const w=num($('fw'),0.2,100), h=num($('fh'),0.2,100); if(w===null||h===null) return;
+    state.W=w; state.H=h; state.view={z:1,cx:w/2,cy:h/2}; layoutStage(); resetAll();
+  };
+  $('fw').addEventListener('input',dims); $('fh').addEventListener('input',dims);
+  $('btnGo').addEventListener('click',()=>{
+    const x=num($('tx'),-1e6,1e6), y=num($('ty'),-1e6,1e6); if(x===null||y===null) return;
+    requestMove([x,y]);
+  });
+  $('vec').addEventListener('change',()=>{state.vec=$('vec').checked;$('keys').hidden=!state.vec;render();});
+  $('rate').addEventListener('change',()=>{state.rate=parseFloat($('rate').value)||1;});
+  $('btnPlay').addEventListener('click',()=>{
+    const p=state.plan; if(!p) return;
+    if(state.playing){state.playing=false;}
+    else{if(state.tNow>=p.T) state.tNow=0; state.playing=true; lastTs=0;}
+    render();
+  });
+  $('btnCenter').addEventListener('click',resetAll);
+  $('scrub').addEventListener('input',()=>{
+    if(!state.plan) return;
+    state.playing=false; state.tNow=$('scrub').value/1000*state.plan.T; render();
+  });
+  const stage=$('stage'), ptrs=new Map(); let drag=null, pinch=null, wasPinch=false;
+  const local=e=>{const r=stage.getBoundingClientRect();return [(e.clientX-r.left)*(geo.wrapW/r.width),(e.clientY-r.top)*(geo.hPx/r.height)];};
+  stage.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0) return;
+    try{stage.setPointerCapture(e.pointerId);}catch(_){}
+    ptrs.set(e.pointerId,local(e));
+    if(ptrs.size===1) drag={p:local(e),cx:state.view.cx,cy:state.view.cy,moved:false};
+    else if(ptrs.size===2){
+      drag=null; wasPinch=true;
+      const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1])};
+    }
+  });
+  stage.addEventListener('pointermove',e=>{
+    if(!ptrs.has(e.pointerId)) return;
+    const p=local(e); ptrs.set(e.pointerId,p);
+    if(ptrs.size===2&&pinch){
+      const [a,b]=[...ptrs.values()], d=Math.hypot(a[0]-b[0],a[1]-b[1]);
+      if(pinch.d>0&&d>0) zoomAt(d/pinch.d,(a[0]+b[0])/2,(a[1]+b[1])/2);
+      pinch.d=d;
+    } else if(drag&&ptrs.size===1){
+      const dx=p[0]-drag.p[0], dy=p[1]-drag.p[1];
+      if(!drag.moved&&Math.hypot(dx,dy)>5) drag.moved=true;
+      if(drag.moved&&state.view.z>1){
+        state.view.cx=drag.cx-dx/geo.scale; state.view.cy=drag.cy+dy/geo.scale; clampView(); applyView();
+      }
+    }
+  });
+  const endPtr=e=>{
+    if(!ptrs.has(e.pointerId)) return;
+    const click=drag&&!drag.moved&&!wasPinch&&ptrs.size===1&&e.type==='pointerup';
+    ptrs.delete(e.pointerId);
+    if(click){
+      const [px,py]=local(e), [x,y]=toWorld(px,py);
+      if(x>=0&&y>=0&&x<=state.W&&y<=state.H) requestMove([x,y]);
+    }
+    if(ptrs.size<2) pinch=null;
+    if(ptrs.size===0){drag=null;wasPinch=false;}
+  };
+  stage.addEventListener('pointerup',endPtr); stage.addEventListener('pointercancel',endPtr);
+  stage.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const k=e.deltaMode===1?16:1, f=Math.exp(-e.deltaY*k*(e.ctrlKey?0.01:0.0018));
+    const [px,py]=local(e); zoomAt(f,px,py);
+  },{passive:false});
+  const ctr=()=>[geo.wx+geo.ww/2,geo.wy+geo.wh/2];
+  $('btnZoomIn').addEventListener('click',()=>zoomAt(1.5,...ctr()));
+  $('btnZoomOut').addEventListener('click',()=>zoomAt(1/1.5,...ctr()));
+  $('btnFit').addEventListener('click',()=>{state.view={z:1,cx:state.W/2,cy:state.H/2};applyView();});
+}
+
+/* ---------- start ---------- */
+initRows(); applyMode(); applyTraj(); applyBlend(); bindControls(); layoutStage(); resetAll();
+let lastW=$('stageWrap').clientWidth, rafPending=false;
+new ResizeObserver(()=>{
+  if(rafPending) return; rafPending=true;
+  requestAnimationFrame(()=>{
+    rafPending=false;
+    const w=$('stageWrap').clientWidth;
+    if(Math.abs(w-lastW)<1) return;
+    lastW=w; layoutStage(); renderPlots(); render();
+  });
+}).observe(document.querySelector('.wrap'));
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

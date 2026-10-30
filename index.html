@@ -161,6 +161,7 @@
 <div class="tabbar" role="tablist">
   <button class="tab-btn" role="tab" id="tabbtn-fluid" data-tab="fluid" aria-controls="tab-fluid">Hose &amp; pump</button>
   <button class="tab-btn" role="tab" id="tabbtn-drum" data-tab="drum" aria-controls="tab-drum">Cable drum</button>
+  <button class="tab-btn" role="tab" id="tabbtn-cdpr" data-tab="cdpr" aria-controls="tab-cdpr">CDPR sandbox</button>
 </div>
 
 <section id="tab-fluid" role="tabpanel" aria-labelledby="tabbtn-fluid">
@@ -922,6 +923,12 @@
 </section>
 </section>
 
+<section id="tab-cdpr" role="tabpanel" aria-labelledby="tabbtn-cdpr" hidden>
+  <!-- Standalone page with its own styles and scripts, so it is framed rather than inlined.
+       src is set on first open (see the tab code) so the fonts and canvas only load when needed. -->
+  <iframe id="cdpr-frame" title="CDPR motion sandbox" style="width:100%;height:1400px;border:0;margin-top:var(--sp-4);display:block"></iframe>
+</section>
+
 <script src="calc.js"></script>
 <script>
 const calc = window.TarsaCalc;
@@ -1516,13 +1523,26 @@ render();
 <script>
 // --- Tabs ---
 // The active tab lives in location.hash (#drum) so a shared link opens it.
-const TABS = ["fluid", "drum"];
+const TABS = ["fluid", "drum", "cdpr"];
 function showTab(name) {
   if (!TABS.includes(name)) name = "fluid";
   for (const t of TABS) {
     document.getElementById(`tab-${t}`).hidden = t !== name;
     document.getElementById(`tabbtn-${t}`).setAttribute("aria-selected", String(t === name));
   }
+  if (name === "cdpr") loadCdprFrame();
+}
+// The sandbox is same-origin, so the frame can be sized to its content instead of scrolling inside itself.
+function loadCdprFrame() {
+  const f = document.getElementById("cdpr-frame");
+  if (f.getAttribute("src")) return;
+  f.addEventListener("load", () => {
+    const body = f.contentDocument.body;
+    const fit = () => { f.style.height = f.contentDocument.documentElement.scrollHeight + "px"; };
+    new ResizeObserver(fit).observe(body);
+    fit();
+  });
+  f.src = "cdpr-sandbox.html";
 }
 for (const t of TABS) {
   document.getElementById(`tabbtn-${t}`).addEventListener("click", () => {
