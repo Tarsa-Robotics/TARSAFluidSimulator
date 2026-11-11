@@ -55,6 +55,14 @@
   .dp-table tr:last-child td { border-bottom: none; font-weight: 600; }
   .dp-table tr.infeasible td { color: var(--signal); }
 
+  .surf-table th { text-align: left; font-weight: 500; color: var(--fg-2); font-size: var(--fs-caption); padding: 6px 0; border-bottom: 1px solid var(--n-300); }
+  .surf-table th.num, .surf-table td.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; padding-left: var(--sp-3); }
+  .surf-table td:last-child { text-align: right; }
+  .surf-table tr:last-child td { font-weight: 400; }
+  .surf-table tr.is-selected td { font-weight: 600; background: var(--n-100); }
+  .surf-table tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--signal); padding-left: var(--sp-2); }
+  .ballast-notes { font-size: var(--fs-caption); color: var(--fg-2); max-width: 70ch; margin-top: var(--sp-5); }
+  .ballast-notes a { color: inherit; }
   details.section-drop { margin: var(--sp-6) 0 0; }
   details.section-drop > summary { cursor: pointer; }
   details.section-drop > summary::marker { color: var(--fg-2); }
@@ -161,6 +169,7 @@
 <div class="tabbar" role="tablist">
   <button class="tab-btn" role="tab" id="tabbtn-fluid" data-tab="fluid" aria-controls="tab-fluid">Hose &amp; pump</button>
   <button class="tab-btn" role="tab" id="tabbtn-drum" data-tab="drum" aria-controls="tab-drum">Cable drum</button>
+  <button class="tab-btn" role="tab" id="tabbtn-ballast" data-tab="ballast" aria-controls="tab-ballast">Reel ballast</button>
   <button class="tab-btn" role="tab" id="tabbtn-cdpr" data-tab="cdpr" aria-controls="tab-cdpr">CDPR sandbox</button>
 </div>
 
@@ -923,6 +932,121 @@
 </section>
 </section>
 
+<section id="tab-ballast" role="tabpanel" aria-labelledby="tabbtn-ballast" hidden>
+<p class="t-sm" style="color:var(--fg-2);max-width:70ch;margin-top:var(--sp-3)">
+  Gives the least mass that keeps a reel base from lifting and from sliding. The cable leaves the
+  pulley on the base with tension T at angle &theta; above horizontal. This tab does not check tipping.
+</p>
+
+<div class="datum" style="margin:var(--sp-5) 0"></div>
+
+<div class="grid2" style="margin-top:var(--sp-6)">
+  <div>
+    <h3 class="t-h4">Inputs</h3>
+    <div class="plain-field">
+      <label class="field-label" for="ballast-in-T" data-tooltip="T — cable tension at the pulley. Use the largest tension the reel sees.">Cable tension T (N)</label>
+      <input class="field" type="number" id="ballast-in-T" step="10" min="0">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="ballast-in-theta" data-tooltip="θ — cable angle from horizontal. Positive pulls the base up, negative pulls it down. 0° is a flat pull, 90° is straight up.">Cable angle &theta; (&deg;)</label>
+      <input class="field" type="number" id="ballast-in-theta" step="1" min="-90" max="90">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="ballast-in-fos" data-tooltip="FoS multiplies the tension. FoS 2 means the base holds twice the cable tension.">Factor of safety FoS</label>
+      <input class="field" type="number" id="ballast-in-fos" step="0.1" min="1">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="ballast-in-surface" data-tooltip="Pad material on the ground surface. Each preset uses the low end of the published static μ range (worst case).">Surface</label>
+      <select class="field" id="ballast-in-surface"></select>
+    </div>
+    <div class="plain-field" id="ballast-mu-row" hidden>
+      <label class="field-label" for="ballast-in-mu" data-tooltip="μ — static friction coefficient between the pad and the ground. A pull test on the real pad gives the best value.">Custom &mu;</label>
+      <input class="field" type="number" id="ballast-in-mu" step="0.01" min="0.01">
+    </div>
+    <div class="plain-field">
+      <label class="field-label" for="ballast-in-mhw" data-tooltip="Optional. Mass of the reel, motor, pulley and base. It counts toward the required mass, so the ballast is the rest.">Hardware mass (kg, optional)</label>
+      <input class="field" type="number" id="ballast-in-mhw" step="1" min="0">
+    </div>
+    <p class="error-box" id="ballast-error" hidden></p>
+  </div>
+
+  <div>
+    <h3 class="t-h4">Result</h3>
+    <p class="status-caption" id="ballast-status"></p>
+    <table class="dp-table">
+      <tr><td>Lift part FoS&middot;T&middot;sin &theta;</td><td id="ballast-W-lift"></td></tr>
+      <tr><td>+ Friction part FoS&middot;T&middot;cos &theta; / &mu;</td><td id="ballast-W-friction"></td></tr>
+      <tr><td>= Required force W</td><td id="ballast-W"></td></tr>
+    </table>
+    <table class="dp-table">
+      <tr><td>Required total mass</td><td id="ballast-m-total"></td></tr>
+      <tr><td>&minus; Hardware mass</td><td id="ballast-m-hw"></td></tr>
+      <tr><td>= Ballast to add</td><td id="ballast-m-ballast"></td></tr>
+    </table>
+
+    <details class="section-drop" open>
+      <summary class="t-h4">All surfaces</summary>
+      <table class="dp-table surf-table">
+        <thead><tr><th>Surface</th><th class="num">&mu;</th><th class="num">Total (kg)</th><th class="num">Ballast (kg)</th></tr></thead>
+        <tbody id="ballast-surf-body"></tbody>
+      </table>
+    </details>
+  </div>
+</div>
+
+<p class="ballast-notes">
+  The &mu; values are the low end of published static friction ranges, so they are the worst case.
+  Rubber values change a lot with the compound, the texture and the temperature. A pull test on the
+  real pad and surface gives a better &mu;. This tab does not check tipping: a tall pulley on a short
+  base can tip before it slides.
+  Sources:
+  <a href="https://engineeringtoolbox.com/friction-coefficients-d_778.html" target="_blank" rel="noopener">Engineering ToolBox</a>,
+  <a href="https://engineersedge.com/coeffients_of_friction.htm" target="_blank" rel="noopener">Engineers Edge</a>,
+  <a href="https://ascelibrary.com/doi/10.1061/%28ASCE%290733-9445%281985%29111%3A3%28505%29" target="_blank" rel="noopener">ASCE 1985 (steel on concrete)</a>,
+  <a href="https://iitk.ac.in/nicee/wcee/article/14_12-01-0077.PDF" target="_blank" rel="noopener">WCEE (steel on mortar)</a>,
+  <a href="https://web.mae.ufl.edu/designlab/Class%20Projects/Background%20Information/Friction%20coefficients.htm" target="_blank" rel="noopener">UF Design Lab</a>,
+  <a href="https://us.misumi-ec.com/blog/coefficient-of-friction/" target="_blank" rel="noopener">MISUMI</a>.
+</p>
+
+<div class="formulas-toggle-row">
+  <button class="btn btn--outline" id="ballast-btn-show-formulas" aria-expanded="false" aria-controls="ballast-formulas-panel">
+    Show formulas
+  </button>
+</div>
+
+<section id="ballast-formulas-panel" class="formulas-panel" hidden>
+  <h3 class="t-h3">Formulas used</h3>
+  <div class="legend-grid">
+    <div class="legend-row"><span class="legend-sym">T</span><span class="legend-desc">Cable tension (N)</span></div>
+    <div class="legend-row"><span class="legend-sym">&theta;</span><span class="legend-desc">Cable angle from horizontal, positive up</span></div>
+    <div class="legend-row"><span class="legend-sym">FoS</span><span class="legend-desc">Factor of safety on the tension</span></div>
+    <div class="legend-row"><span class="legend-sym">&mu;</span><span class="legend-desc">Static friction coefficient, pad on ground</span></div>
+    <div class="legend-row"><span class="legend-sym">W</span><span class="legend-desc">Required weight on the ground (N)</span></div>
+    <div class="legend-row"><span class="legend-sym">m</span><span class="legend-desc">Required total mass (kg)</span></div>
+    <div class="legend-row"><span class="legend-sym">g</span><span class="legend-desc">9.81 m/s&sup2;</span></div>
+  </div>
+
+  <div class="formula-block">
+    <div class="step-no">01</div>
+    <h5>Force balance on the base</h5>
+    <div class="formula-eq">N = W &minus; FoS&middot;T&middot;sin &theta; &nbsp;&ge; 0, &nbsp; &mu;&middot;N &ge; FoS&middot;T&middot;cos &theta;</div><br>
+    <div class="formula-eq">W = FoS &middot; T &middot; (sin &theta; + cos &theta; / &mu;)</div>
+    <p class="formula-note">N is the normal force from the ground. The pulley is on the same base, so the cable between the reel and the pulley adds no net force. Only T at &theta; acts on the base. If W comes out below 0, a steep downward pull holds the base by itself, and W = 0.</p>
+  </div>
+  <div class="formula-block">
+    <div class="step-no">02</div>
+    <h5>Required total mass</h5>
+    <div class="formula-eq">m = W / g</div>
+  </div>
+  <div class="formula-block">
+    <div class="step-no">03</div>
+    <h5>Ballast</h5>
+    <div class="formula-eq">ballast = max(0, m &minus; m<sub>hardware</sub>)</div>
+    <p class="formula-note">The reel, motor, pulley and base press on the ground too, so they count toward m.</p>
+  </div>
+</section>
+</section>
+
 <section id="tab-cdpr" role="tabpanel" aria-labelledby="tabbtn-cdpr" hidden>
   <!-- Standalone page with its own styles and scripts, so it is framed rather than inlined.
        src is set on first open (see the tab code) so the fonts and canvas only load when needed. -->
@@ -1523,7 +1647,7 @@ render();
 <script>
 // --- Tabs ---
 // The active tab lives in location.hash (#drum) so a shared link opens it.
-const TABS = ["fluid", "drum", "cdpr"];
+const TABS = ["fluid", "drum", "ballast", "cdpr"];
 function showTab(name) {
   if (!TABS.includes(name)) name = "fluid";
   for (const t of TABS) {
@@ -1975,6 +2099,87 @@ drumFormulasBtn.addEventListener("click", () => {
   if (willShow) drumFormulasPanel.scrollIntoView?.({ behavior: "smooth", block: "start" });
 });
 
+// --- Reel ballast tab ---
+// One forward calculation: the least weight that stops the base from lifting
+// and sliding. The table repeats it for every preset surface.
+const ballastState = { T_n: 1000, theta_deg: 30, fos: 2, surface: "rubber_concrete_dry", mu_custom: 0.5, m_hw_kg: 0 };
+const ballastEl = (id) => document.getElementById(id);
+const fmtN = (x) => `${x.toFixed(0)} N`;
+const fmtKg = (x) => `${x.toFixed(1)} kg`;
+
+function ballastMu() {
+  if (ballastState.surface === "custom") return ballastState.mu_custom;
+  return calc.BALLAST_SURFACES.find((s) => s.id === ballastState.surface).mu;
+}
+
+function renderBallast() {
+  const base = { T_n: ballastState.T_n, theta_deg: ballastState.theta_deg, fos: ballastState.fos, m_hw_kg: ballastState.m_hw_kg };
+  const r = calc.ballastForward({ ...base, mu: ballastMu() });
+  ballastEl("ballast-mu-row").hidden = ballastState.surface !== "custom";
+  ballastEl("ballast-error").hidden = r.feasible;
+  ballastEl("ballast-error").textContent = r.error || "";
+  const show = (id, text) => { ballastEl(id).textContent = r.feasible ? text : "—"; };
+  show("ballast-W-lift", fmtN(r.W_lift_n));
+  show("ballast-W-friction", fmtN(r.W_friction_n));
+  show("ballast-W", fmtN(r.W_n));
+  show("ballast-m-total", fmtKg(r.m_total_kg));
+  show("ballast-m-hw", fmtKg(ballastState.m_hw_kg));
+  show("ballast-m-ballast", fmtKg(r.m_ballast_kg));
+  ballastEl("ballast-status").innerHTML = !r.feasible ? ""
+    : r.W_n === 0 ? "The cable pulls the base down hard enough to hold it. <b>No mass is needed.</b>"
+    : `Use <b>${fmtKg(r.m_ballast_kg)}</b> of ballast on ${ballastState.surface === "custom" ? `a surface with μ = ${ballastMu()}` : calc.BALLAST_SURFACES.find((s) => s.id === ballastState.surface).name.toLowerCase()}.`;
+
+  const rows = calc.BALLAST_SURFACES.map((s) => ({ ...s, r: calc.ballastForward({ ...base, mu: s.mu }) }));
+  if (ballastState.surface === "custom") rows.push({ id: "custom", name: "Custom", mu: ballastState.mu_custom, r });
+  const body = ballastEl("ballast-surf-body");
+  body.replaceChildren(...rows.map((row) => {
+    const tr = document.createElement("tr");
+    if (row.id === ballastState.surface) tr.className = "is-selected";
+    const cells = [row.name, row.mu.toFixed(2),
+      row.r.feasible ? row.r.m_total_kg.toFixed(1) : "—",
+      row.r.feasible ? row.r.m_ballast_kg.toFixed(1) : "—"];
+    cells.forEach((text, i) => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (i > 0) td.className = "num";
+      tr.appendChild(td);
+    });
+    if (row.range) tr.title = `Published range: ${row.range}`;
+    return tr;
+  }));
+}
+
+{
+  const sel = ballastEl("ballast-in-surface");
+  for (const s of calc.BALLAST_SURFACES) sel.add(new Option(`${s.name} (μ ${s.mu.toFixed(2)})`, s.id));
+  sel.add(new Option("Custom", "custom"));
+  sel.value = ballastState.surface;
+  sel.addEventListener("change", () => { ballastState.surface = sel.value; renderBallast(); });
+
+  // Inputs keep the typed value; the calc module rejects bad values and the error box explains.
+  for (const [id, key] of [["ballast-in-T", "T_n"], ["ballast-in-theta", "theta_deg"], ["ballast-in-fos", "fos"],
+                           ["ballast-in-mu", "mu_custom"], ["ballast-in-mhw", "m_hw_kg"]]) {
+    const el = ballastEl(id);
+    el.value = ballastState[key];
+    el.addEventListener("input", () => {
+      const x = el.value.trim() === "" && key === "m_hw_kg" ? 0 : parseFloat(el.value);
+      ballastState[key] = Number.isFinite(x) ? x : NaN;
+      renderBallast();
+    });
+  }
+}
+
+const ballastFormulasBtn = ballastEl("ballast-btn-show-formulas");
+const ballastFormulasPanel = ballastEl("ballast-formulas-panel");
+ballastFormulasBtn.addEventListener("click", () => {
+  const willShow = ballastFormulasPanel.hidden;
+  ballastFormulasPanel.hidden = !willShow;
+  ballastFormulasBtn.textContent = willShow ? "Hide formulas" : "Show formulas";
+  ballastFormulasBtn.setAttribute("aria-expanded", String(willShow));
+  if (willShow) ballastFormulasPanel.scrollIntoView?.({ behavior: "smooth", block: "start" });
+});
+
+renderBallast();
 renderDrum();
 </script>
 

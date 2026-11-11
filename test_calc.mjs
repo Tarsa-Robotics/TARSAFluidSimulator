@@ -467,5 +467,47 @@ const BASE_2D_INPUTS = {
   check(kc.current_ok, "motor.current_ok_at_limit");
 }
 
+// --- Reel ballast ---
+{
+  const base = { T_n: 1000, theta_deg: 30, fos: 2, mu: 0.5 };
+  // Hand-worked: W = 2*1000*(0.5 + cos30/0.5) = 4464.10 N.
+  const r = calc.ballastForward(base);
+  check(r.feasible, "ballast.worked_feasible");
+  approx(r.W_lift_n, 1000, 1e-9, "ballast.worked_lift");
+  approx(r.W_n, 2000 * (0.5 + Math.sqrt(3) / 2 / 0.5), 1e-12, "ballast.worked_W");
+  approx(r.W_n, 4464.10, 1e-5, "ballast.worked_W_rounded");
+  approx(r.m_total_kg, 455.05, 1e-4, "ballast.worked_mass");
+  approx(r.m_ballast_kg, r.m_total_kg, 1e-12, "ballast.no_hardware_all_ballast");
+
+  // Straight up: only lifting. Flat: only sliding.
+  const up = calc.ballastForward({ ...base, theta_deg: 90 });
+  approx(up.W_n, 2000, 1e-9, "ballast.vertical_W");
+  check(Math.abs(up.W_friction_n) < 1e-9, "ballast.vertical_no_friction_part");
+  const flat = calc.ballastForward({ ...base, theta_deg: 0 });
+  approx(flat.W_n, 4000, 1e-12, "ballast.flat_W");
+  check(flat.W_lift_n === 0, "ballast.flat_no_lift_part");
+
+  // A steep downward pull holds the base by itself.
+  const down = calc.ballastForward({ ...base, theta_deg: -80 });
+  check(down.W_n === 0 && down.m_total_kg === 0, "ballast.steep_down_needs_nothing");
+
+  // Ballast = total - hardware, never below 0.
+  approx(calc.ballastForward({ ...base, m_hw_kg: 100 }).m_ballast_kg, r.m_total_kg - 100, 1e-12, "ballast.subtract_hardware");
+  check(calc.ballastForward({ ...base, m_hw_kg: 1000 }).m_ballast_kg === 0, "ballast.clamp_at_zero");
+
+  // Bad inputs.
+  check(!calc.ballastForward({ ...base, mu: 0 }).feasible, "ballast.bad_mu");
+  check(!calc.ballastForward({ ...base, fos: 0.5 }).feasible, "ballast.bad_fos");
+  check(!calc.ballastForward({ ...base, theta_deg: 95 }).feasible, "ballast.bad_angle");
+  check(!calc.ballastForward({ ...base, T_n: -1 }).feasible, "ballast.bad_tension");
+  check(!calc.ballastForward({ ...base, m_hw_kg: -1 }).feasible, "ballast.bad_hardware");
+
+  // Presets.
+  const want = { rubber_concrete_dry: 0.6, rubber_concrete_wet: 0.45, rubber_asphalt_dry: 0.5,
+    rubber_asphalt_wet: 0.25, wood_concrete: 0.62, steel_concrete: 0.5, steel_steel_dry: 0.5 };
+  check(calc.BALLAST_SURFACES.length === 7, "ballast.seven_presets");
+  for (const s of calc.BALLAST_SURFACES) check(want[s.id] === s.mu, `ballast.preset_${s.id}`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -490,3 +490,49 @@ def test_motor_checks_thresholds():
     assert not calc.motor_checks(ds, 1.5, 0)["past_max_power"]
     assert calc.motor_checks(ds, 1.51, 0)["past_max_power"]
     assert calc.motor_checks(ds, 1, 0)["current_a"] is None
+
+
+_BALLAST_BASE = {"T_n": 1000, "theta_deg": 30, "fos": 2, "mu": 0.5}
+
+
+def test_ballast_worked_case():
+    r = calc.ballast_forward(_BALLAST_BASE)
+    assert r["feasible"]
+    assert r["W_lift_n"] == pytest.approx(1000)
+    assert r["W_n"] == pytest.approx(2000 * (0.5 + math.cos(math.radians(30)) / 0.5), rel=1e-12)
+    assert r["W_n"] == pytest.approx(4464.10, rel=1e-5)
+    assert r["m_total_kg"] == pytest.approx(455.05, rel=1e-4)
+    assert r["m_ballast_kg"] == pytest.approx(r["m_total_kg"])
+
+
+def test_ballast_vertical_and_flat():
+    up = calc.ballast_forward({**_BALLAST_BASE, "theta_deg": 90})
+    assert up["W_n"] == pytest.approx(2000)
+    assert abs(up["W_friction_n"]) < 1e-9
+    flat = calc.ballast_forward({**_BALLAST_BASE, "theta_deg": 0})
+    assert flat["W_n"] == pytest.approx(4000)
+    assert flat["W_lift_n"] == 0
+
+
+def test_ballast_steep_down_needs_nothing():
+    r = calc.ballast_forward({**_BALLAST_BASE, "theta_deg": -80})
+    assert r["W_n"] == 0 and r["m_total_kg"] == 0
+
+
+def test_ballast_hardware():
+    total = calc.ballast_forward(_BALLAST_BASE)["m_total_kg"]
+    assert calc.ballast_forward({**_BALLAST_BASE, "m_hw_kg": 100})["m_ballast_kg"] == pytest.approx(total - 100)
+    assert calc.ballast_forward({**_BALLAST_BASE, "m_hw_kg": 1000})["m_ballast_kg"] == 0
+
+
+@pytest.mark.parametrize("key,value", [("mu", 0), ("fos", 0.5), ("theta_deg", 95),
+                                       ("T_n", -1), ("m_hw_kg", -1)])
+def test_ballast_bad_inputs(key, value):
+    assert not calc.ballast_forward({**_BALLAST_BASE, key: value})["feasible"]
+
+
+def test_ballast_presets():
+    want = {"rubber_concrete_dry": 0.6, "rubber_concrete_wet": 0.45, "rubber_asphalt_dry": 0.5,
+            "rubber_asphalt_wet": 0.25, "wood_concrete": 0.62, "steel_concrete": 0.5,
+            "steel_steel_dry": 0.5}
+    assert {s["id"]: s["mu"] for s in calc.BALLAST_SURFACES} == want

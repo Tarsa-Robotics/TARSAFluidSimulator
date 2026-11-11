@@ -576,6 +576,48 @@
     };
   }
 
+  // --- Reel ballast ---
+  // Worst-case (low end of the published range) static friction coefficients.
+  // Sources: Engineering ToolBox, Engineers Edge, ASCE 1985 (steel on concrete).
+  const BALLAST_SURFACES = [
+    { id: "rubber_concrete_dry", name: "Rubber on dry concrete", mu: 0.6, range: "0.6–0.85" },
+    { id: "rubber_concrete_wet", name: "Rubber on wet concrete", mu: 0.45, range: "0.45–0.75" },
+    { id: "rubber_asphalt_dry", name: "Rubber on dry asphalt", mu: 0.5, range: "0.5–0.8" },
+    { id: "rubber_asphalt_wet", name: "Rubber on wet asphalt", mu: 0.25, range: "0.25–0.75" },
+    { id: "wood_concrete", name: "Wood on concrete", mu: 0.62, range: "one value only" },
+    { id: "steel_concrete", name: "Steel on concrete", mu: 0.5, range: "0.5–0.7" },
+    { id: "steel_steel_dry", name: "Steel on dry steel", mu: 0.5, range: "0.5–0.8" },
+  ];
+
+  /**
+   * Least weight that keeps a reel base from lifting and from sliding.
+   * The cable pulls the base with tension T at theta above horizontal.
+   * FoS multiplies the tension. The base does not tip (no tipping check).
+   *   W = FoS * T * (sin(theta) + cos(theta) / mu), never less than 0
+   */
+  function ballastForward({ T_n, theta_deg, fos, mu, m_hw_kg = 0 }) {
+    const bad = (error) => ({
+      W_n: NaN, W_lift_n: NaN, W_friction_n: NaN, m_total_kg: NaN, m_ballast_kg: NaN,
+      feasible: false, error,
+    });
+    if (!(T_n >= 0)) return bad("Tension must be 0 N or more.");
+    if (!(theta_deg >= -90 && theta_deg <= 90)) return bad("Angle must be from −90° to 90°.");
+    if (!(fos >= 1)) return bad("FoS must be 1 or more.");
+    if (!(mu > 0)) return bad("μ must be more than 0.");
+    if (!(m_hw_kg >= 0)) return bad("Hardware mass must be 0 kg or more.");
+    const th = (theta_deg * Math.PI) / 180;
+    const F = fos * T_n;
+    const W_lift_n = F * Math.sin(th);
+    const W_friction_n = (F * Math.cos(th)) / mu;
+    const W_n = Math.max(0, W_lift_n + W_friction_n);
+    const m_total_kg = W_n / G;
+    return {
+      W_n, W_lift_n, W_friction_n, m_total_kg,
+      m_ballast_kg: Math.max(0, m_total_kg - m_hw_kg),
+      feasible: true, error: null,
+    };
+  }
+
   const TarsaCalc = {
     RHO_WATER,
     G,
@@ -616,6 +658,8 @@
     winchSolve,
     motorRatings,
     motorChecks,
+    BALLAST_SURFACES,
+    ballastForward,
   };
 
   if (typeof module !== "undefined" && module.exports) {

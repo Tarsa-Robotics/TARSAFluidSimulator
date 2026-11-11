@@ -541,3 +541,54 @@ def motor_checks(ratings: dict, T: float, rpm: float) -> dict:
         "current_a": current_a,
         "current_ok": None if current_a is None else current_a <= ratings["I_cont"],
     }
+
+
+# --- Reel ballast ---
+# Worst-case (low end of the published range) static friction coefficients.
+# Sources: Engineering ToolBox, Engineers Edge, ASCE 1985 (steel on concrete).
+BALLAST_SURFACES = [
+    {"id": "rubber_concrete_dry", "name": "Rubber on dry concrete", "mu": 0.6, "range": "0.6–0.85"},
+    {"id": "rubber_concrete_wet", "name": "Rubber on wet concrete", "mu": 0.45, "range": "0.45–0.75"},
+    {"id": "rubber_asphalt_dry", "name": "Rubber on dry asphalt", "mu": 0.5, "range": "0.5–0.8"},
+    {"id": "rubber_asphalt_wet", "name": "Rubber on wet asphalt", "mu": 0.25, "range": "0.25–0.75"},
+    {"id": "wood_concrete", "name": "Wood on concrete", "mu": 0.62, "range": "one value only"},
+    {"id": "steel_concrete", "name": "Steel on concrete", "mu": 0.5, "range": "0.5–0.7"},
+    {"id": "steel_steel_dry", "name": "Steel on dry steel", "mu": 0.5, "range": "0.5–0.8"},
+]
+
+
+def ballast_forward(inputs: dict) -> dict:
+    """Least weight that keeps a reel base from lifting and from sliding.
+    The cable pulls the base with tension T at theta above horizontal.
+    FoS multiplies the tension. The base does not tip (no tipping check).
+        W = FoS * T * (sin(theta) + cos(theta) / mu), never less than 0
+    """
+    T = inputs["T_n"]
+    theta = inputs["theta_deg"]
+    fos = inputs["fos"]
+    mu = inputs["mu"]
+    m_hw = inputs.get("m_hw_kg", 0.0)
+
+    def bad(error):
+        nan = float("nan")
+        return {"W_n": nan, "W_lift_n": nan, "W_friction_n": nan, "m_total_kg": nan,
+                "m_ballast_kg": nan, "feasible": False, "error": error}
+
+    if not T >= 0:
+        return bad("Tension must be 0 N or more.")
+    if not -90 <= theta <= 90:
+        return bad("Angle must be from −90° to 90°.")
+    if not fos >= 1:
+        return bad("FoS must be 1 or more.")
+    if not mu > 0:
+        return bad("μ must be more than 0.")
+    if not m_hw >= 0:
+        return bad("Hardware mass must be 0 kg or more.")
+    th = math.radians(theta)
+    F = fos * T
+    W_lift = F * math.sin(th)
+    W_friction = F * math.cos(th) / mu
+    W = max(0.0, W_lift + W_friction)
+    m_total = W / G
+    return {"W_n": W, "W_lift_n": W_lift, "W_friction_n": W_friction, "m_total_kg": m_total,
+            "m_ballast_kg": max(0.0, m_total - m_hw), "feasible": True, "error": None}
