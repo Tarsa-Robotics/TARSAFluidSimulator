@@ -61,6 +61,19 @@
   .surf-table tr:last-child td { font-weight: 400; }
   .surf-table tr.is-selected td { font-weight: 600; background: var(--n-100); }
   .surf-table tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--signal); padding-left: var(--sp-2); }
+  .ballast-fig { width: 100%; max-width: 420px; height: auto; display: block; margin: var(--sp-2) 0 var(--sp-1); }
+  .ballast-fig .bd-ground { stroke: var(--fg-2); stroke-width: 1.5; }
+  .ballast-fig .bd-hatch { stroke: var(--n-300); stroke-width: 1; }
+  .ballast-fig .bd-body { fill: var(--n-100); stroke: var(--ink); stroke-width: 1.5; }
+  .ballast-fig .bd-ballast { fill: var(--n-300); stroke: var(--ink); stroke-width: 1.5; }
+  .ballast-fig .bd-line { stroke: var(--ink); stroke-width: 2; fill: none; }
+  .ballast-fig .bd-ref { stroke: var(--fg-2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .ballast-fig .bd-arc { stroke: var(--signal); stroke-width: 1.5; fill: none; }
+  .ballast-fig .bd-force { stroke: var(--signal); stroke-width: 2; }
+  .ballast-fig .bd-head { fill: var(--signal); }
+  .ballast-fig text { font-family: var(--font-mono); font-size: 11px; fill: var(--ink); }
+  .ballast-fig text.bd-signal { fill: var(--signal); }
+  .ballast-fig text.bd-muted { fill: var(--fg-2); }
   .ballast-notes { font-size: var(--fs-caption); color: var(--fg-2); max-width: 70ch; margin-top: var(--sp-5); }
   .ballast-notes a { color: inherit; }
   details.section-drop { margin: var(--sp-6) 0 0; }
@@ -971,6 +984,41 @@
   </div>
 
   <div>
+    <h3 class="t-h4">Diagram</h3>
+    <svg class="ballast-fig" id="ballast-fig" viewBox="0 0 380 230" role="img" aria-labelledby="ballast-fig-title">
+      <title id="ballast-fig-title">Reel base on the ground with the cable at angle θ</title>
+      <defs>
+        <marker id="bd-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="bd-head" d="M0,0 L10,5 L0,10 z"/>
+        </marker>
+      </defs>
+      <!-- ground -->
+      <line class="bd-ground" x1="10" y1="180" x2="370" y2="180"/>
+      <g id="ballast-hatch"></g>
+      <!-- base, ballast, reel, pulley -->
+      <rect class="bd-body" x="70" y="160" width="140" height="20"/>
+      <rect class="bd-ballast" x="78" y="122" width="56" height="38"/>
+      <text x="106" y="145" text-anchor="middle" class="bd-muted">ballast</text>
+      <line class="bd-line" x1="166" y1="160" x2="166" y2="146"/>
+      <circle class="bd-body" cx="166" cy="130" r="16"/>
+      <circle class="bd-line" cx="166" cy="130" r="3"/>
+      <line class="bd-line" x1="196" y1="160" x2="196" y2="106"/>
+      <circle class="bd-body" cx="196" cy="100" r="6"/>
+      <!-- cable: reel to pulley, then out at theta -->
+      <line class="bd-line" x1="166" y1="114" x2="196" y2="94"/>
+      <line class="bd-line" id="ballast-cable" x1="196" y1="100" x2="326" y2="100" marker-end="url(#bd-arrow)"/>
+      <line class="bd-ref" x1="196" y1="100" x2="300" y2="100"/>
+      <path class="bd-arc" id="ballast-arc" d=""/>
+      <text id="ballast-arc-label" class="bd-signal" x="0" y="0"></text>
+      <!-- forces -->
+      <text id="ballast-T-label" class="bd-signal" x="0" y="0">FoS·T</text>
+      <line class="bd-force" x1="106" y1="72" x2="106" y2="116" marker-end="url(#bd-arrow)"/>
+      <text x="100" y="66" text-anchor="middle" class="bd-signal">W = m·g</text>
+      <line class="bd-force" id="ballast-F-arrow" x1="66" y1="174" x2="22" y2="174" marker-end="url(#bd-arrow)"/>
+      <text id="ballast-F-label" x="22" y="166" class="bd-signal">μ·N</text>
+    </svg>
+    <p class="t-caption" style="color:var(--fg-2);margin:0 0 var(--sp-4)">Not to scale. The arrows show the directions of the forces.</p>
+
     <h3 class="t-h4">Result</h3>
     <p class="status-caption" id="ballast-status"></p>
     <table class="dp-table">
@@ -2112,6 +2160,54 @@ function ballastMu() {
   return calc.BALLAST_SURFACES.find((s) => s.id === ballastState.surface).mu;
 }
 
+// Redraws the cable, the angle arc and the tension arrow for theta (degrees).
+// SVG y points down, so a positive theta goes to -y.
+function drawBallastFig(thetaDeg) {
+  if (!Number.isFinite(thetaDeg)) return;
+  const th = (Math.max(-90, Math.min(90, thetaDeg)) * Math.PI) / 180;
+  const px = 196, py = 100, groundY = 180;
+  const ux = Math.cos(th), uy = -Math.sin(th);
+  // Keep the cable inside the frame: stop at the ground, the top and the label space on the right.
+  let len = 150;
+  if (uy > 0) len = Math.min(len, (groundY - py) / uy);
+  if (uy < 0) len = Math.min(len, (py - 16) / -uy);
+  if (ux > 0) len = Math.min(len, (380 - 46 - px) / ux);
+  const set = (id, attrs) => { const el = ballastEl(id); for (const k in attrs) el.setAttribute(k, attrs[k]); };
+  const endX = px + ux * len, endY = py + uy * len;
+  set("ballast-cable", { x2: endX, y2: endY });
+  // The cable is the tension direction, so its arrowhead carries the label.
+  set("ballast-T-label", { x: endX + 6, y: Math.max(14, Math.min(176, endY + (uy < 0 ? 0 : 4))) });
+
+  // Angle arc from the horizontal reference to the cable.
+  const R = 34;
+  const ex = px + R * ux, ey = py + R * uy;
+  const sweep = thetaDeg > 0 ? 0 : 1;
+  ballastEl("ballast-arc").setAttribute("d", Math.abs(thetaDeg) < 0.5 ? "" : `M ${px + R} ${py} A ${R} ${R} 0 0 ${sweep} ${ex} ${ey}`);
+  const mid = th / 2;
+  const lab = ballastEl("ballast-arc-label");
+  // Small angles: move the label off the reference line.
+  const small = Math.abs(thetaDeg) < 20 ? (thetaDeg >= 0 ? -8 : 10) : 0;
+  lab.setAttribute("x", px + (R + 8) * Math.cos(mid) + 4);
+  lab.setAttribute("y", py - (R + 8) * Math.sin(mid) + (thetaDeg >= 0 ? 0 : 10) + small);
+  lab.textContent = `θ = ${Number(thetaDeg.toFixed(1))}°`;
+
+  // Friction opposes the horizontal pull, so it points left. No horizontal pull at ±90°.
+  const hasFriction = Math.abs(Math.cos(th)) > 1e-6;
+  ballastEl("ballast-F-arrow").style.display = hasFriction ? "" : "none";
+  ballastEl("ballast-F-label").style.display = hasFriction ? "" : "none";
+}
+
+{
+  // Ground hatch marks, drawn once.
+  const g = ballastEl("ballast-hatch");
+  for (let x = 20; x <= 360; x += 14) {
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("class", "bd-hatch");
+    l.setAttribute("x1", x); l.setAttribute("y1", 180); l.setAttribute("x2", x - 8); l.setAttribute("y2", 190);
+    g.appendChild(l);
+  }
+}
+
 function renderBallast() {
   const base = { T_n: ballastState.T_n, theta_deg: ballastState.theta_deg, fos: ballastState.fos, m_hw_kg: ballastState.m_hw_kg };
   const r = calc.ballastForward({ ...base, mu: ballastMu() });
@@ -2128,6 +2224,8 @@ function renderBallast() {
   ballastEl("ballast-status").innerHTML = !r.feasible ? ""
     : r.W_n === 0 ? "The cable pulls the base down hard enough to hold it. <b>No mass is needed.</b>"
     : `Use <b>${fmtKg(r.m_ballast_kg)}</b> of ballast on ${ballastState.surface === "custom" ? `a surface with μ = ${ballastMu()}` : calc.BALLAST_SURFACES.find((s) => s.id === ballastState.surface).name.toLowerCase()}.`;
+
+  drawBallastFig(ballastState.theta_deg);
 
   const rows = calc.BALLAST_SURFACES.map((s) => ({ ...s, r: calc.ballastForward({ ...base, mu: s.mu }) }));
   if (ballastState.surface === "custom") rows.push({ id: "custom", name: "Custom", mu: ballastState.mu_custom, r });
